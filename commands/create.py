@@ -1,4 +1,3 @@
-from datetime import datetime
 import random
 from commands.utils import is_admin
 from .base import command, Command

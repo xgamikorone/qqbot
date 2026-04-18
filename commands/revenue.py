@@ -1,286 +1,28 @@
-from datetime import datetime, timedelta
-from enum import IntEnum
-import os
+from datetime import timedelta
 from .base import command, Command, cooldown
 from dao import get_dao
 from botpy.message import Message
 from botpy import logging
-from typing import List, Optional
+from typing import List
 import asyncio
-import aiohttp
-from dotenv import load_dotenv
 from textwrap import dedent
+from .api import (
+    ErrorCode,
+    get_last_session_id,
+    get_session_revenue,
+    get_session_info,
+    get_super_chats,
+    get_guards,
+    get_user_super_chats,
+    get_user_guards,
+    get_user_danmus,
+    get_online_members,
+)
 from .utils import get_name_from_uid, is_admin
+from utils.time_utils import beijing_now
 
 
 _log = logging.get_logger()
-load_dotenv()
-api_url = os.getenv("API_URL")
-proxy = os.getenv("PROXY")
-_log.info(f"api_url: {api_url}, proxy: {proxy}")
-
-# 创建全局 session 实例，添加连接池限制和超时设置
-import atexit
-
-# 延迟初始化 session
-global_session = None
-
-async def get_session():
-    global global_session
-    if global_session is None or global_session.closed:
-        connector = aiohttp.TCPConnector(limit=50, limit_per_host=20)
-        timeout = aiohttp.ClientTimeout(total=60, connect=20, sock_read=20, sock_connect=20)
-        global_session = aiohttp.ClientSession(connector=connector, timeout=timeout)
-    return global_session
-
-# 程序退出时清理
-@atexit.register
-def cleanup():
-    import asyncio
-    if global_session and not global_session.closed:
-        try:
-            # 尝试获取运行中的事件循环
-            loop = asyncio.get_running_loop()
-            loop.create_task(global_session.close())
-        except RuntimeError:
-            # 没有运行中的事件循环，创建一个新的
-            try:
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(global_session.close())
-                loop.close()
-            except Exception:
-                # 如果仍然失败，忽略错误，因为程序已经在退出
-                pass
-
-
-class ErrorCode(IntEnum):
-    NO_LIVE_SESSIONS = -1
-    ERROR_FETCHING_DATA = -2
-
-
-async def get_last_session_id(uid: int) -> int:
-    url = f"{api_url}/live_sessions/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        session = await get_session()
-        async with session.get(url, headers=headers, proxy=proxy) as response:
-            data = await response.json()
-            if data:
-                live_sessions = data["live_sessions"]
-                if not live_sessions:
-                    return -1
-                return live_sessions[-1]["session_id"]
-            return ErrorCode.NO_LIVE_SESSIONS
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return ErrorCode.ERROR_FETCHING_DATA
-
-
-async def get_session_revenue(session_id: int) -> dict:
-    url = f"{api_url}/live_revenue/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        session = await get_session()
-        async with session.get(url, headers=headers, proxy=proxy) as response:
-            data = await response.json()
-            if data:
-                revenue = data
-                return revenue
-            return {}
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return {}
-
-
-async def get_session_info(session_id: int) -> dict:
-    url = f"{api_url}/live_session_info/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        session = await get_session()
-        async with session.get(url, headers=headers, proxy=proxy) as response:
-            data = await response.json()
-            if data:
-                return data["live_session"]
-            return {}
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return {}
-
-async def get_danmu_info(session_id: int) -> int:
-    url = f"{api_url}/danmu/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    params = {
-        "limit": 1,
-        "sort": "asc"
-    }
-    try:
-        session = await get_session()
-        async with session.get(url, headers=headers, proxy=proxy, params=params) as response:
-            data = await response.json()
-            if data:
-                return data["count"]
-            return 0
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return 0
-
-async def get_super_chats(uid: int, start: int, end: int) -> list:
-    url = f"{api_url}/streamer_super_chats/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        session = await get_session()
-        async with session.get(
-            url, params={"start": start, "end": end}, proxy=proxy, headers=headers
-        ) as response:
-            data = await response.json()
-            if data:
-                return data["super_chats"]
-            return []
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return []
-
-
-async def get_guards(uid: int, start: int, end: int) -> list:
-    url = f"{api_url}/streamer_guards/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        session = await get_session()
-        async with session.get(
-            url, params={"start": start, "end": end}, proxy=proxy, headers=headers
-        ) as response:
-            data = await response.json()
-            if data:
-                return data["guards"]
-            return []
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return []
-
-
-async def get_user_super_chats(
-    uid: int,
-    start_time: str,
-    end_time: str,
-    streamer_uids: Optional[List[int]],
-    start: int,
-    end: int,
-) -> list:
-    url = f"{api_url}/user_super_chats_by_uid/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    params = {
-        "start_time": start_time,
-        "end_time": end_time,
-        "start": start,
-        "end": end,
-    }
-    if streamer_uids is not None:
-        params["streamer_uids"] = streamer_uids
-    try:
-        session = await get_session()
-        async with session.get(
-            url,
-            params=params,
-            proxy=proxy,
-            headers=headers,
-        ) as response:
-            data = await response.json()
-            if data:
-                return data["super_chats"]
-            return []
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return []
-
-
-async def get_user_guards(
-    uid: int,
-    start_time: str,
-    end_time: str,
-    streamer_uids: Optional[List[int]],
-    start: int,
-    end: int,
-):
-    url = f"{api_url}/user_guards_by_uid/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    params = {
-        "start_time": start_time,
-        "end_time": end_time,
-        "start": start,
-        "end": end,
-    }
-    if streamer_uids is not None:
-        params["streamer_uids"] = streamer_uids
-    try:
-        session = await get_session()
-        async with session.get(
-            url,
-            params=params,
-            proxy=proxy,
-            headers=headers,
-        ) as response:
-            data = await response.json()
-            if data:
-                return data["guards"]
-            return []
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return []
-
-
-async def get_user_danmus(
-    uid: int,
-    start_time: str,
-    end_time: str,
-    streamer_uids: Optional[List[int]],
-    start: int,
-    end: int,
-):
-    url = f"{api_url}/user_danmus_by_uid/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    params = {
-        "start_time": start_time,
-        "end_time": end_time,
-        "start": start,
-        "end": end,
-    }
-    if streamer_uids is not None:
-        params["streamer_uids"] = streamer_uids
-    try:
-        session = await get_session()
-        async with session.get(
-            url,
-            params=params,
-            proxy=proxy,
-            headers=headers,
-        ) as response:
-            data = await response.json()
-            if data:
-                return data["danmus"]
-            return []
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return []
-
-async def get_online_members(session_id: int) -> dict:
-    url = f"{api_url}/online_members/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-
-    try:
-        session = await get_session()
-        async with session.get(
-            url,
-            proxy=proxy,
-            headers=headers,
-        ) as response:
-            data = await response.json()
-            if data:
-                return data
-            return {}
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return {}
-
 
 @command("查营收", "营收", "revenue")
 class RevenueCommand(Command):
@@ -518,10 +260,10 @@ class UserSuperChatCommand(Command):
         # 检查可选参数
         # e.g. /p 1 /r 又一, 1900141897 (多个主播)
         room_str = ""
-        start_time = (datetime.now() - timedelta(days=180)).strftime(
+        start_time = (beijing_now() - timedelta(days=180)).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        end_time = beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         num_page = 0
         for i in range(1, len(args), 2):
             if args[i] == "/p":
@@ -535,7 +277,7 @@ class UserSuperChatCommand(Command):
             if args[i] == "/e":
                 end_time = args[i + 1]
         if end_time < start_time:
-            end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            end_time = beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         _log.info(
             f"room_str: {room_str}, num_page: {num_page}, start_time: {start_time}, end_time: {end_time}"
         )
@@ -627,10 +369,10 @@ class UserGuardsCommand(Command):
                 return
         # 检查可选参数
         room_str = ""
-        start_time = (datetime.now() - timedelta(days=180)).strftime(
+        start_time = (beijing_now() - timedelta(days=180)).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        end_time = beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         num_page = 0
         for i in range(1, len(args), 2):
             if args[i] == "/p":
@@ -644,7 +386,7 @@ class UserGuardsCommand(Command):
             if args[i] == "/e":
                 end_time = args[i + 1]
         if end_time < start_time:
-            end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            end_time = beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         _log.info(
             f"room_str: {room_str}, num_page: {num_page}, start_time: {start_time}, end_time: {end_time}"
         )
@@ -746,10 +488,10 @@ class UserDanmusCommand(Command):
                 return
         # 检查可选参数
         room_str = ""
-        start_time = (datetime.now() - timedelta(days=180)).strftime(
+        start_time = (beijing_now() - timedelta(days=180)).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        end_time = beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         num_page = 0
         for i in range(1, len(args), 2):
             if args[i] == "/p":
@@ -763,7 +505,7 @@ class UserDanmusCommand(Command):
             if args[i] == "/e":
                 end_time = args[i + 1]
         if end_time < start_time:
-            end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            end_time = beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         _log.info(
             f"room_str: {room_str}, num_page: {num_page}, start_time: {start_time}, end_time: {end_time}"
         )
@@ -1020,3 +762,5 @@ class SuperChatCommandV2(Command):
             res_str += "\n\n"
             await asyncio.sleep(1.0)  # 避免请求过快
         await self.send_reply(message, res_str.rstrip("\n"))
+
+

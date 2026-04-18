@@ -1,8 +1,8 @@
 import json
 import sqlite3
 import logging
-from datetime import datetime
 from typing import Any, Dict, List
+from utils.time_utils import beijing_now_str
 
 DB_NAME = "user.db"
 logger = logging.getLogger(__name__)
@@ -18,7 +18,10 @@ class Dao:
 
     def add_user(self, uid):
         cursor = self.conn.cursor()
-        cursor.execute("INSERT INTO users (uid) VALUES (?)", (uid,))
+        cursor.execute(
+            "INSERT INTO users (uid, created_at) VALUES (?, ?)",
+            (uid, beijing_now_str()),
+        )
         self.conn.commit()
 
     def _init_db(self):
@@ -27,7 +30,7 @@ class Dao:
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             uid INTEGER NOT NULL UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
         );
 
         -- 子表：昵称表
@@ -35,7 +38,7 @@ class Dao:
             id INTEGER PRIMARY KEY,       -- 自增ID
             uid INTEGER NOT NULL,         -- 外键指向 users.uid
             nickname TEXT NOT NULL UNIQUE, -- 昵称全局唯一，便于通过昵称查询uid
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
             FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
@@ -49,7 +52,7 @@ class Dao:
             channel_id TEXT NOT NULL,  -- 调用消息所在的channel_id
             guild_id TEXT NOT NULL,    -- 调用消息所在的guild_id
             content TEXT NOT NULL,     -- 调用消息的content
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
             user_id TEXT NOT NULL,  -- 调用者的uid
             user_name TEXT NOT NULL,  -- 调用者的昵称
             command_name TEXT NOT NULL,  -- 调用的命令名
@@ -62,7 +65,7 @@ class Dao:
             url TEXT NOT NULL UNIQUE,
             name TEXT,
             enabled INTEGER DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
         );
 
         -- 用户每日老婆记录
@@ -75,7 +78,7 @@ class Dao:
             guild_id TEXT NOT NULL,    -- 调用消息所在的guild_id
             
             date TEXT NOT NULL,            -- 'YYYY-MM-DD'
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
 
             UNIQUE (user_id, date),
             FOREIGN KEY (wife_id) REFERENCES wife_urls(id)
@@ -90,7 +93,7 @@ class Dao:
             guild_id TEXT NOT NULL,    -- 调用消息所在的guild_id
 
             date TEXT NOT NULL,            -- 'YYYY-MM-DD'
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
 
             UNIQUE (user_id, date)
         )
@@ -116,10 +119,10 @@ class Dao:
         for w in data:
             self.conn.execute(
                 """
-                INSERT OR IGNORE INTO wife_urls (url, name, enabled)
-                VALUES (?, ?, 1)
+                INSERT OR IGNORE INTO wife_urls (url, name, enabled, created_at)
+                VALUES (?, ?, 1, ?)
                 """,
-                (w["url"], w.get("name")),
+                (w["url"], w.get("name"), beijing_now_str()),
             )
         self.conn.commit()
 
@@ -139,10 +142,13 @@ class Dao:
         try:
             cursor = self.conn.cursor()
             # 先确保uid存在，不存在则自动插入
-            cursor.execute("INSERT OR IGNORE INTO users (uid) VALUES (?)", (uid,))
+            cursor.execute(
+                "INSERT OR IGNORE INTO users (uid, created_at) VALUES (?, ?)",
+                (uid, beijing_now_str()),
+            )
             # 再添加昵称
-            sql = "INSERT INTO user_nicknames (uid, nickname) VALUES (?,?)"
-            cursor.execute(sql, (uid, nickname))
+            sql = "INSERT INTO user_nicknames (uid, nickname, created_at) VALUES (?, ?, ?)"
+            cursor.execute(sql, (uid, nickname, beijing_now_str()))
             self.conn.commit()
             return True
         except sqlite3.IntegrityError:
@@ -277,8 +283,8 @@ class Dao:
     ) -> bool:
 
         sql = """
-        INSERT INTO command_records (message_id, channel_id, guild_id, content, user_id, user_name, command_name, command_args)
-        VALUES (?,?,?,?,?,?,?,?)"""
+        INSERT INTO command_records (message_id, channel_id, guild_id, content, created_at, user_id, user_name, command_name, command_args)
+        VALUES (?,?,?,?,?,?,?,?,?)"""
         try:
             cursor = self.conn.cursor()
             cursor.execute(
@@ -288,6 +294,7 @@ class Dao:
                     channel_id,
                     guild_id,
                     content,
+                    beijing_now_str(),
                     user_id,
                     user_name,
                     command_name,
@@ -448,7 +455,7 @@ class Dao:
             return {}
 
     def _get_today_str(self):
-        return datetime.now().strftime("%Y-%m-%d")
+        return beijing_now_str("%Y-%m-%d")
 
     def get_wife(self, user_id: str, channel_id: str, guild_id: str):
         today = self._get_today_str()
@@ -487,10 +494,10 @@ class Dao:
         wife_id = row["id"]
         cursor.execute(
             """
-            INSERT OR IGNORE INTO user_wife_daily (user_id, wife_id, channel_id, guild_id, date)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO user_wife_daily (user_id, wife_id, channel_id, guild_id, date, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, wife_id, channel_id, guild_id, today),
+            (user_id, wife_id, channel_id, guild_id, today, beijing_now_str()),
         )
 
         self.conn.commit()
@@ -550,10 +557,10 @@ class Dao:
         cursor.execute(
             """
             INSERT INTO user_chuang_daily
-            (user_id, distance, channel_id, guild_id, date)
-            VALUES (?, ?, ?, ?, ?)
+            (user_id, distance, channel_id, guild_id, date, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, distance, channel_id, guild_id, date),
+            (user_id, distance, channel_id, guild_id, date, beijing_now_str()),
         )
         self.conn.commit()
 

@@ -5,70 +5,23 @@ from textwrap import dedent
 
 import aiohttp
 from dotenv import load_dotenv
+
+from commands.api import (
+    get_num_followers,
+    get_num_guards,
+    get_tagged_streamers,
+    get_user_info_by_uids,
+    get_users_name_like,
+)
 from .base import command, Command
 from botpy.message import Message
 from typing import List
 from botpy import logging
 from .categories import categories
+from .tags import tags_map
 
 
 _log = logging.get_logger()
-
-load_dotenv()
-api_url = os.getenv("API_URL")
-proxy = os.getenv("PROXY")
-
-
-async def get_tagged_streamers(tag_id: int) -> List[int] | None:
-    url = f"{api_url}/tag_users/{tag_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, proxy=proxy) as response:
-                data = await response.json()
-                if data and "data" in data:
-                    return data["data"]
-                return None
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return None
-
-
-async def get_user_info_by_uids(uids: List[int]) -> dict | None:
-    url = f"{api_url}/streamers_room_ids"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url, params={"uids": uids}, headers=headers, proxy=proxy
-            ) as response:
-                data = await response.json()
-                if data:
-                    return data["data"]
-                return None
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return None
-
-
-async def get_num_guards(uids: List[int], room_ids: List[int]):
-    url = f"{api_url}/streamers_guards"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url,
-                params={"uids": uids, "room_ids": room_ids},
-                headers=headers,
-                proxy=proxy,
-            ) as response:
-                data = await response.json()
-                if data:
-                    return data["data"]
-                return None
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return None
 
 
 @command("舰长", "num_guards")
@@ -85,11 +38,27 @@ class GuardsCommand(Command):
         else:
             category = args[0]
 
-        if category not in categories:
-            await self.send_reply(message, f"未知的分类：{category}")
-            return
+        if category not in tags_map:
+            # 输入是主播名称
+            name_pattern = category
+            users = await get_users_name_like(name_pattern)
+            if not users:
+                await self.send_reply(
+                    message, f"{category}既不是已知分类，也没有找到匹配的主播！"
+                )
+                return
 
-        uids = categories[category]
+            uids = [user["uid"] for user in users]
+        else:
+            tag_id = tags_map[category]
+            data = await get_tagged_streamers(tag_id)
+            if data is None:
+                await self.send_reply(
+                    message, f"获取 {category} 分类主播信息失败, 请稍后再试"
+                )
+                return
+            uids = [item["uid"] for item in data]
+
         user_infos = await get_user_info_by_uids(uids)
         if user_infos is None:
             await self.send_reply(message, f"获取 {category} 分类主播信息失败")
@@ -111,8 +80,9 @@ class GuardsCommand(Command):
             await self.send_reply(message, f"获取 {category} 分类主播舰长信息失败")
             return
 
-        num_guards_strs = []
+        # num_guards_strs = []
         record_time = ""
+        name_guards_delta_list = []
         for uid in filtered_uids:
             guard_info = num_guards.get(str(uid), {})
             num_guards_this_uid = guard_info.get("num_guards", None)
@@ -120,8 +90,17 @@ class GuardsCommand(Command):
             name = user_infos[str(uid)]["name"]
             record_time = guard_info.get("record_time", "")
             delta_str = f"+{delta}" if delta is not None and delta > 0 else str(delta)
-            num_guards_str = f"{name}: {num_guards_this_uid if num_guards_this_uid is not None else '获取失败'}{' (' + delta_str + ')' if delta is not None else ''}"
-            num_guards_strs.append(num_guards_str)
+            # num_guards_str = f"{name}: {num_guards_this_uid if num_guards_this_uid is not None else '获取失败'}{' (' + delta_str + ')' if delta is not None else ''}"
+            # num_guards_strs.append(num_guards_str)
+            name_guards_delta_list.append((name, num_guards_this_uid, delta_str))
+
+        name_guards_delta_list.sort(
+            key=lambda x: (x[1] if x[1] is not None else -1, x[2]), reverse=True
+        )
+        num_guards_strs = [
+            f"{name}: {guards if guards is not None else '获取失败'}{' (' + delta + ')' if delta is not None else ''}"
+            for name, guards, delta in name_guards_delta_list
+        ]
 
         res_str += "\n".join(num_guards_strs)
         res_str += f"\n\n对比时间: {record_time}"
@@ -132,7 +111,7 @@ class GuardsCommand(Command):
 guards_help_str = dedent(
     f"""\
     /舰长 [分类] 查询当前分类舰长数，默认查询四禧丸子。
-    分类包括: {','.join(categories)}
+    分类包括: {','.join(tags_map)}
     """
 )
 
@@ -147,23 +126,6 @@ class GuardsHelpCommand(Command):
         return
 
 
-async def get_num_followers(uids: List[int]):
-    url = f"{api_url}/streamers_followers"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url, params={"uids": uids}, headers=headers, proxy=proxy
-            ) as response:
-                data = await response.json()
-                if data:
-                    return data["data"]
-                return None
-    except Exception as e:
-        _log.exception(f"Error fetching data from {url}: {e}")
-        return None
-
-
 @command("粉丝", "followers")
 class FollowersCommand(Command):
     name = "followers"
@@ -176,11 +138,27 @@ class FollowersCommand(Command):
         else:
             category = args[0]
 
-        if category not in categories:
-            await self.send_reply(message, f"未知的分类：{category}")
-            return
+        if category not in tags_map:
+            # 输入是主播名称
+            name_pattern = category
+            users = await get_users_name_like(name_pattern)
+            if not users:
+                await self.send_reply(
+                    message, f"{category}既不是已知分类，也没有找到匹配的主播！"
+                )
+                return
 
-        uids = categories[category]
+            uids = [user["uid"] for user in users]
+        else:
+            tag_id = tags_map[category]
+            data = await get_tagged_streamers(tag_id)
+            if data is None:
+                await self.send_reply(
+                    message, f"获取 {category} 分类主播信息失败, 请稍后再试"
+                )
+                return
+            uids = [item["uid"] for item in data]
+
         fans_data = await get_num_followers(uids)
         if fans_data is None:
             await self.send_reply(message, f"获取 {category} 分类主播粉丝信息失败")
@@ -195,15 +173,27 @@ class FollowersCommand(Command):
 
         res_str = f"粉丝数:\n"
         record_time = ""
-        fans_strs = []
+        # fans_strs = []
+        name_followers_delta_list = []
         for uid in uids:
             fans_info = fans_data.get(str(uid), {})
             num_followers = fans_info.get("num_followers", None)
             delta = fans_info.get("delta", None)
             delta_str = f"+{delta}" if delta is not None and delta > 0 else str(delta)
-            fans_this_uid_str = f"{user_infos[str(uid)]['name']}: {num_followers if num_followers is not None else '获取失败'}{' (' + delta_str + ')' if delta is not None else ''}"
-            fans_strs.append(fans_this_uid_str)
+            # fans_this_uid_str = f"{user_infos[str(uid)]['name']}: {num_followers if num_followers is not None else '获取失败'}{' (' + delta_str + ')' if delta is not None else ''}"
+            # fans_strs.append(fans_this_uid_str)
             record_time = fans_info.get("record_time", "")
+            name_followers_delta_list.append(
+                (user_infos[str(uid)]["name"], num_followers, delta_str)
+            )
+
+        name_followers_delta_list.sort(
+            key=lambda x: (x[1] if x[1] is not None else -1, x[2]), reverse=True
+        )
+        fans_strs = [
+            f"{name}: {followers if followers is not None else '获取失败'}{' (' + delta + ')' if delta is not None else ''}"
+            for name, followers, delta in name_followers_delta_list
+        ]
 
         res_str += "\n".join(fans_strs)
         res_str += f"\n\n对比时间: {record_time}"
@@ -214,7 +204,7 @@ class FollowersCommand(Command):
 followers_help_str = dedent(
     f"""\
     /粉丝 [分类] 查询当前分类粉丝数，默认查询四禧丸子。
-    分类包括: {','.join(categories)}
+    分类包括: {','.join(tags_map)}
     """
 )
 

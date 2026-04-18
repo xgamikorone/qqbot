@@ -12,14 +12,8 @@ class TestCommand(Command):
     name = "test"
     cn_name = "测试"
     async def execute(self, message: Message, args: List[str]):
-        # 找出imgs/wives目录下所有文件
-        files = os.listdir("./imgs/wives")
+        sub_cmd = args[0] if args else None
+        if sub_cmd == "wife":
+            wife_id = args[1] if len(args) > 1 else 0
+            
 
-        # 依次发送所有文件
-        for file in files:
-            file_path = os.path.join("./imgs/wives", file)
-            await self.client.api.post_message(
-                message.channel_id,
-                content=f"这是{file_path}:",
-                file_image=file_path
-            )

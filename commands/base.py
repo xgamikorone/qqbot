@@ -5,25 +5,26 @@ from botpy.message import Message
 from botpy import logging
 from dao import get_dao
 from collections import defaultdict
-from datetime import datetime
+from utils.time_utils import beijing_now
 
 _command_registry: Dict[str, Type["Command"]] = {}
 _log = logging.get_logger(__name__)
 
-last_used = defaultdict(lambda: datetime.min)
+last_used = defaultdict(float)
 
 def cooldown(seconds: int):
     """冷却装饰器：限制命令的全局使用频率"""
     def decorator(func):
         async def wrapper(self, message: Message, args: List[str]):
             command_name = self.name
-            now = datetime.now()
-            if (now - last_used[command_name]).total_seconds() < seconds:
-                remaining = seconds - (now - last_used[command_name]).total_seconds()
+            now_ts = beijing_now().timestamp()
+            elapsed = now_ts - last_used[command_name]
+            if elapsed < seconds:
+                remaining = seconds - elapsed
                 _log.info(f"命令 {command_name} 冷却中，还需等待 {remaining:.1f} 秒")
                 await self.send_reply(message, f"命令冷却中，还需等待 {remaining:.1f} 秒")
                 return
-            last_used[command_name] = now
+            last_used[command_name] = now_ts
             return await func(self, message, args)
         return wrapper
     return decorator

@@ -10,11 +10,13 @@ from commands.guards import get_num_followers, get_num_guards, get_user_info_by_
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import asyncio
+from zoneinfo import ZoneInfo
 
 
 
 
 _log = logging.get_logger()
+BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 
 
 
@@ -86,7 +88,7 @@ class MyClient(botpy.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cmd_manager = CommandManager(self)
-        self.scheduler = AsyncIOScheduler()
+        self.scheduler = AsyncIOScheduler(timezone=BEIJING_TZ)
         print(list(self.cmd_manager.commands.keys()))
         print(commands._command_name_to_formal_name)
 
@@ -190,7 +192,7 @@ class MyClient(botpy.Client):
             except Exception as e:
                 _log.error(f"发送定时消息失败: {e}")
         
-        trigger = CronTrigger(hour=hour, minute=minute)
+        trigger = CronTrigger(hour=hour, minute=minute, timezone=BEIJING_TZ)
         job_id = f"scheduled_message_{channel_id}_{hour}_{minute}"
         self.scheduler.add_job(send_message, trigger=trigger, id=job_id, replace_existing=True)
         _log.info(f"已添加定时任务: {job_id}")

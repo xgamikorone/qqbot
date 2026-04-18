@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from datetime import datetime
 from typing import List, Callable, Awaitable, Optional, Dict, Any
+from utils.time_utils import beijing_now_str
 
 from .base import (
     command,
@@ -127,7 +127,7 @@ class RankCommand(Command):
         dao = get_dao()
         guild_id = message.guild_id
         user_id = message.author.id
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = beijing_now_str("%Y-%m-%d")
 
         top_data = dao.get_chuang_top_k_cur_guild(10, today_str, guild_id)
 
@@ -335,7 +335,7 @@ class RankCommand(Command):
 
             rank = dao.get_user_chuang_times_rank_cur_guild(times, guild_id)
 
-            return f"{rank}. {message.author.username}: {rank}"
+            return f"{rank}. {message.author.username}: {times}"
 
         return RankResult(
             RankConfig(

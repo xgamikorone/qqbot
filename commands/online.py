@@ -4,6 +4,8 @@ import re
 from textwrap import dedent
 
 import aiohttp
+
+from commands.api import get_on_live_sessions
 from .base import command, Command
 from botpy.message import Message
 from typing import List
@@ -16,9 +18,9 @@ load_dotenv()
 
 _log = logging.get_logger()
 
-api_url = os.getenv("API_URL")
-proxy = os.getenv("PROXY")
-_log.info(f"api_url: {api_url}, proxy: {proxy}")
+# api_url = os.getenv("API_URL")
+# proxy = os.getenv("PROXY")
+# _log.info(f"api_url: {api_url}, proxy: {proxy}")
 
 exclusive_uids = [
     3493269266762688,
@@ -30,20 +32,7 @@ exclusive_uids = [
 ]
 
 
-async def get_on_live_sessions():
-    url = f"{api_url}/on_live_sessions_with_online_numbers"
-    headers = {"Referer": "https://bilivupstats.top/"}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, proxy=proxy, headers=headers) as response:
-                data = await response.json()
-                if not data:
-                    return None
-                return data.get("data", None)
 
-    except Exception as e:
-        _log.error(f"Error getting on_live_sessions: {e}")
-        return []
 
 
 @command("看谁", "高能", "gn", "同接")

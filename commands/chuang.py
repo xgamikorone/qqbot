@@ -1,4 +1,3 @@
-from datetime import datetime
 import random
 from commands.utils import is_admin
 from .base import command, Command
@@ -7,6 +6,7 @@ from botpy.message import Message
 from botpy import logging
 from typing import List
 from textwrap import dedent
+from utils.time_utils import beijing_now_str
 
 _log = logging.get_logger()
 
@@ -20,7 +20,7 @@ IMG_BREAK = "https://i.imgs.ovh/2026/02/16/yuiXJa.png"
 
 
 def today_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+    return beijing_now_str("%Y-%m-%d")
 
 def biased_random(min_v=1, max_v=999, power=2.0):
     """
@@ -60,7 +60,7 @@ class ChuangCommand(Command):
         if today_row is not None:
             distance = today_row
         else:
-            distance = biased_random(power=2.5)
+            distance = biased_random(power=3.0)
 
             # 2️⃣ 查询历史最高纪录（插入前）
             history_max = dao.get_chuang_history_max(user_id)
