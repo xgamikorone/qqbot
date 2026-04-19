@@ -22,6 +22,7 @@ from . import (
     test,
     create,
     current_time,
+    bv
 )
 
 __all__ = ["command", "Command", "_command_registry", "CommandManager", "_command_name_to_formal_name", "_command_alias_to_name"]

@@ -399,3 +399,22 @@ async def get_users_name_like(name: str) -> list[dict]:
     except Exception as e:
         _log.exception(f"Error fetching data from {url}: {e}")
         return []
+    
+async def get_bv_info(bv: str):
+    url = f"{api_url}/bv_info"
+    headers = {"Referer": "https://bilivupstats.top/"}
+    try:
+        session = await get_session()
+        async with session.get(
+            url,
+            params={"bv": bv},
+            proxy=proxy,
+            headers=headers,
+        ) as response:
+            data = await response.json()
+            if data:
+                return data
+            return {}
+    except Exception as e:
+        _log.exception(f"Error fetching data from {url}: {e}")
+        return {}
