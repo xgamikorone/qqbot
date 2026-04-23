@@ -528,6 +528,21 @@ class Dao:
             logger.exception(f"获取老婆数量失败, error: {e}")
             return 0
 
+    def get_user_wife_certain_date(self, user_id: str, date: str) -> dict[str, Any]:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT w.id, w.url, w.name
+            FROM user_wife_daily uw
+            JOIN wife_urls w ON uw.wife_id = w.id
+            WHERE uw.user_id = ? AND uw.date = ?
+            """,
+            (user_id, date),
+        )
+
+        row = cursor.fetchone()
+        return dict(row) if row else {}
+
     def get_today_chuang_distance(
         self, user_id: str, guild_id: str, date: str
     ) -> int | None:
