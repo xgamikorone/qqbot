@@ -45,7 +45,7 @@ def cleanup():
 
 async def get_tagged_streamers(tag_id: int) -> List[dict] | None:
     url = f"{api_url}/tag_users/{tag_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(url, headers=headers, proxy=proxy) as response:
@@ -60,7 +60,7 @@ async def get_tagged_streamers(tag_id: int) -> List[dict] | None:
 
 async def get_user_info_by_uids(uids: List[int]) -> dict | None:
     url = f"{api_url}/streamers_room_ids"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -77,7 +77,7 @@ async def get_user_info_by_uids(uids: List[int]) -> dict | None:
 
 async def get_num_guards(uids: List[int], room_ids: List[int]):
     url = f"{api_url}/streamers_guards"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -97,7 +97,7 @@ async def get_num_guards(uids: List[int], room_ids: List[int]):
 
 async def get_num_followers(uids: List[int]):
     url = f"{api_url}/streamers_followers"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -114,7 +114,7 @@ async def get_num_followers(uids: List[int]):
 
 async def get_on_live_sessions():
     url = f"{api_url}/on_live_sessions_with_online_numbers"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(url, proxy=proxy, headers=headers) as response:
@@ -160,7 +160,7 @@ class ErrorCode(IntEnum):
 
 async def get_last_session_id(uid: int) -> int:
     url = f"{api_url}/live_sessions/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(url, headers=headers, proxy=proxy) as response:
@@ -178,7 +178,7 @@ async def get_last_session_id(uid: int) -> int:
 
 async def get_session_revenue(session_id: int) -> dict:
     url = f"{api_url}/live_revenue/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(url, headers=headers, proxy=proxy) as response:
@@ -193,7 +193,7 @@ async def get_session_revenue(session_id: int) -> dict:
 
 async def get_session_info(session_id: int) -> dict:
     url = f"{api_url}/live_session_info/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(url, headers=headers, proxy=proxy) as response:
@@ -208,7 +208,7 @@ async def get_session_info(session_id: int) -> dict:
 
 async def get_danmu_info(session_id: int) -> int:
     url = f"{api_url}/danmu/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     params = {"limit": 1, "sort": "asc"}
     try:
         session = await get_session()
@@ -226,7 +226,7 @@ async def get_danmu_info(session_id: int) -> int:
 
 async def get_super_chats(uid: int, start: int, end: int) -> list:
     url = f"{api_url}/streamer_super_chats/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -243,7 +243,7 @@ async def get_super_chats(uid: int, start: int, end: int) -> list:
 
 async def get_guards(uid: int, start: int, end: int) -> list:
     url = f"{api_url}/streamer_guards/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -267,7 +267,7 @@ async def get_user_super_chats(
     end: int,
 ) -> list:
     url = f"{api_url}/user_super_chats_by_uid/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     params = {
         "start_time": start_time,
         "end_time": end_time,
@@ -302,7 +302,7 @@ async def get_user_guards(
     end: int,
 ):
     url = f"{api_url}/user_guards_by_uid/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     params = {
         "start_time": start_time,
         "end_time": end_time,
@@ -337,7 +337,7 @@ async def get_user_danmus(
     end: int,
 ):
     url = f"{api_url}/user_danmus_by_uid/{uid}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     params = {
         "start_time": start_time,
         "end_time": end_time,
@@ -365,7 +365,7 @@ async def get_user_danmus(
 
 async def get_online_members(session_id: int) -> dict:
     url = f"{api_url}/online_members/{session_id}"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -383,7 +383,7 @@ async def get_online_members(session_id: int) -> dict:
 
 async def get_users_name_like(name: str) -> list[dict]:
     url = f"{api_url}/users_name_like"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(
@@ -402,7 +402,7 @@ async def get_users_name_like(name: str) -> list[dict]:
     
 async def get_bv_info(bv: str):
     url = f"{api_url}/bv_info"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         session = await get_session()
         async with session.get(

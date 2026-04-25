@@ -16,7 +16,7 @@ proxy = os.getenv("PROXY")
 
 async def get_all_streamers() -> list | None:
     url = f"{api_url}/users"
-    headers = {"Referer": "https://bilivupstats.top/"}
+    headers = {}
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, proxy=proxy, headers=headers) as response:
