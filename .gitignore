@@ -2,6 +2,9 @@
 # fonts/
 *pycache*
 .env
+.env.*
+!.env.example
 replace_wife_urls.py
 *.sql
 user.db*
+sessions.json
