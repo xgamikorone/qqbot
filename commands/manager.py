@@ -42,9 +42,8 @@ class CommandManager:
         if cmd_name not in self.commands:
             for cmd in self.commands:
                 if (
-                    cmd_name.startswith(cmd) # 匹配命令别名
-                    and cmd != cmd_name # 别名不能是命令名的子串
-                    
+                    cmd_name.startswith(cmd)  # 匹配命令别名
+                    and cmd != cmd_name  # 别名不能是命令名的子串
                 ):
                     arg = cmd_name[len(cmd) :]
                     cmd_name = cmd_name[: len(cmd)]
@@ -54,7 +53,13 @@ class CommandManager:
 
         if cmd_name in self.commands:
             args = msgs[2:]
-            await self.commands[cmd_name].execute(message, args)
+            try:
+                await self.commands[cmd_name].execute(message, args)
+            except Exception as e:
+                _log.exception(f"Error executing command {cmd_name}: {e}")
+                await self.commands[cmd_name].send_reply(
+                    message, f"执行命令时发生错误: {e}"
+                )
             await self.commands[cmd_name].after_execute(message, args)
 
             return True
