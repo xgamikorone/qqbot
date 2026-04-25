@@ -26,6 +26,7 @@ overall_help_message = dedent(
     /同接 查看当前直播同接人数
     /斗虫 查看数据对比
     /来个老婆 每日获得一个随机老婆
+    /我的老婆 查看在某一天的老婆
     /排行榜 查看各项排行榜
     /答案之书 向答案之书提问
     /生日快乐
@@ -98,5 +99,10 @@ class HelpCommand(Command):
         if command_name == "生日快乐":
             await self.send_reply(message, "格式为 /生日快乐 <用户>")
             return
+        
+        if command_name == "我的老婆":
+            await self.send_reply(message, "格式为 /我的老婆 <日期>，日期可以是相对时间（如：今天、昨天、前天、N天前）或绝对时间（如：2024-06-01）")
+            return
+
         await self.send_reply(message, f"未找到{command_name}命令的帮助信息")
         return

@@ -2,3 +2,6 @@ imgs/
 fonts/
 *pycache*
 .env
+replace_wife_urls.py
+*.sql
+user.db*

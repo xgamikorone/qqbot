@@ -72,7 +72,7 @@ class MyWifeCommand(Command):
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
 
-        if not args[0]:
+        if not args:
             date_str = datetime.date.today().strftime("%Y-%m-%d")
         else:
             arg = args[0]

@@ -40,15 +40,17 @@ def _days_in_month(year: int, month: int) -> int:
         next_month = datetime.date(year, month + 1, 1)
     return (next_month - datetime.timedelta(days=1)).day
 
+TODAY_STRS = ["今天", "today", "今日", "本日"]
+YESTERDAY_STRS = ["昨天", "yesterday", "昨日"]
 
 def convert_str_to_date(date_str: str) -> Optional[datetime.date]:
     date_str = date_str.strip()
     today = datetime.date.today()
 
     # ===== 1. 相对时间 =====
-    if date_str == "今天":
+    if date_str in TODAY_STRS:
         return today
-    if date_str == "昨天":
+    if date_str in YESTERDAY_STRS:
         return today - datetime.timedelta(days=1)
     if date_str == "前天":
         return today - datetime.timedelta(days=2)
@@ -105,7 +107,7 @@ def convert_str_to_date(date_str: str) -> Optional[datetime.date]:
             continue
 
     # ===== 4. 不带年份（默认今年）=====
-    for fmt in ("%m-%d", "%m/%d"):
+    for fmt in ("%m-%d", "%m/%d", "%m.%d"):
         try:
             d = datetime.datetime.strptime(date_str, fmt)
             return datetime.date(today.year, d.month, d.day)
