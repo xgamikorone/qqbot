@@ -129,6 +129,8 @@ class Dao:
     def close(self):
         self.conn.close()
 
+    ### 昵称相关操作 ###
+
     def add_nickname(self, uid: int, nickname: str) -> bool:
         """添加uid和对应的nickname，如果uid不存在则自动添加
 
@@ -269,6 +271,9 @@ class Dao:
         except sqlite3.Error as e:
             logger.exception(f"查询所有昵称和uid失败, error: {e}")
             return []
+        
+
+    ### 命令记录相关操作 ###
 
     def add_command_record(
         self,
@@ -456,6 +461,8 @@ class Dao:
 
     def _get_today_str(self):
         return beijing_now_str("%Y-%m-%d")
+    
+    ### 老婆相关操作 ###
 
     def get_wife(self, user_id: str, channel_id: str, guild_id: str):
         today = self._get_today_str()
@@ -542,6 +549,48 @@ class Dao:
 
         row = cursor.fetchone()
         return dict(row) if row else {}
+    
+    def get_user_wife_counts(self, user_id: str, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
+        """获取用户的不同老婆次数统计，按降序排序，分页"""
+        offset = (page - 1) * page_size
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT w.id, w.url, w.name, COUNT(*) AS count
+            FROM user_wife_daily uw
+            JOIN wife_urls w ON uw.wife_id = w.id
+            WHERE uw.user_id = ?
+            GROUP BY w.id, w.url, w.name
+            ORDER BY count DESC
+            LIMIT ? OFFSET ?
+            """,
+            (user_id, page_size, offset),
+        )
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    
+    def get_wife_counts(self, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
+        """获取每个老婆的次数统计，按降序排序，分页"""
+        offset = (page - 1) * page_size
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT w.id, w.url, w.name, COUNT(*) AS count
+            FROM user_wife_daily uw
+            JOIN wife_urls w ON uw.wife_id = w.id
+            GROUP BY w.id, w.url, w.name
+            ORDER BY count DESC
+            LIMIT ? OFFSET ?
+            """,
+            (page_size, offset),
+        )
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    
+
+    ### 被创相关操作 ###
 
     def get_today_chuang_distance(
         self, user_id: str, guild_id: str, date: str
@@ -652,18 +701,6 @@ class Dao:
         )
         row = cursor.fetchone()
         return row["max_distance"] or 0
-
-    def add_qq_user_nickname(self, user_id: str, nickname: str):
-        with self.conn:
-            cursor = self.conn.execute(
-                """
-                INSERT OR IGNORE INTO user_nickname_ids
-                (user_id, nickname)
-                VALUES (?, ?)
-                """,
-                (user_id, nickname),
-            )
-            return cursor.rowcount == 1
 
     def get_chuang_top_k_cur_guild(
         self, k: int, date: str, guild_id: str

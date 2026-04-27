@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 from typing import List, Callable, Awaitable, Optional, Dict, Any
 from utils.time_utils import beijing_now_str
 
@@ -506,6 +506,66 @@ class RankCommand(Command):
                 top_data=top_data,
                 render_row=render_row,
                 render_footer=render_footer,
+            )
+        )
+
+
+    # =====================================================
+    # 我的老婆
+    # =====================================================
+    @rank_handler("我的老婆")
+    async def _rank_my_wife(self, message: Message, args: List[str]) -> RankResult:
+        dao = get_dao()
+        guild_id = message.guild_id
+        user_id = message.author.id
+        user = message.author
+        if args:
+            page = args[0]
+            if page.isdigit() and int(page) > 0:
+                page = int(page)
+            else:
+                return RankResult(error="参数错误, 页数应为一个正整数")
+        else:
+            page = 1
+
+        top_data = dao.get_user_wife_counts(user_id, page=1)
+        def render_row(rank: int, row: dict) -> str:
+            return f"{rank}. {row['wife_name']} ({row['count']}次)"
+
+        return RankResult(
+            RankConfig(
+                title=f"{user.username}的老婆排行榜 (第{page}页):",
+                top_data=top_data,
+                render_row=render_row,
+                render_footer=None
+            )
+        )
+    
+    # =====================================================
+    # 老婆
+    # =====================================================
+    @rank_handler("老婆")
+    async def _rank_wife(self, message: Message, args: List[str]) -> RankResult:
+        dao = get_dao()
+        if args:
+            page = args[0]
+            if page.isdigit() and int(page) > 0:
+                page = int(page)
+            else:
+                return RankResult(error="参数错误, 页数应为一个正整数")
+        else:
+            page = 1
+
+        top_data = dao.get_wife_counts(page=page)
+        def render_row(rank: int, row: dict) -> str:
+            return f"{rank}. {row['wife_name']} ({row['count']}次)"
+
+        return RankResult(
+            RankConfig(
+                title=f"老婆排行榜 (第{page}页):",
+                top_data=top_data,
+                render_row=render_row,
+                render_footer=None
             )
         )
 
