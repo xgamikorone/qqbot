@@ -25,6 +25,17 @@ RenderRow = Callable[[int, Dict[str, Any]], str]
 RenderFooter = Callable[[List[Dict[str, Any]]], Awaitable[Optional[str]]]
 
 
+RANK_HANDLER_ATTR = "__rank_handler_names__"
+
+
+def rank_handler(*names: str):
+    def decorator(func):
+        setattr(func, RANK_HANDLER_ATTR, tuple(names))
+        return func
+
+    return decorator
+
+
 @dataclass
 class RankConfig:
     title: str
@@ -111,6 +122,7 @@ class RankCommand(Command):
             "他的命令": self._rank_user_command_counts,
             "命令用户": self._rank_command_user_counts,
         }
+        rank_map.update(self._get_rank_handlers())
 
         handler = rank_map.get(cmd)
         if not handler:
@@ -118,10 +130,32 @@ class RankCommand(Command):
 
         return await handler(message, args)
 
+    def _get_rank_handlers(
+        self,
+    ) -> Dict[str, Callable[[Message, List[str]], Awaitable[RankResult]]]:
+        cached = getattr(self, "_rank_handlers_cache", None)
+        if cached is not None:
+            return cached
+
+        rank_map: Dict[str, Callable[[Message, List[str]], Awaitable[RankResult]]] = {}
+        for attr_name in dir(self):
+            handler = getattr(self, attr_name, None)
+            names = getattr(handler, RANK_HANDLER_ATTR, None)
+            if not names:
+                continue
+            for name in names:
+                if name in rank_map:
+                    _log.warning(f"rank handler '{name}' duplicate registration, latter wins")
+                rank_map[name] = handler
+
+        self._rank_handlers_cache = rank_map
+        return rank_map
+
     # =====================================================
     # 今日被创
     # =====================================================
 
+    @rank_handler("被创")
     async def _rank_today(self, message: Message, args: List[str]) -> RankResult:
 
         dao = get_dao()
@@ -169,6 +203,7 @@ class RankCommand(Command):
     # 历史被创
     # =====================================================
 
+    @rank_handler("历史被创")
     async def _rank_history(self, message: Message, args: List[str]) -> RankResult:
 
         dao = get_dao()
@@ -213,6 +248,7 @@ class RankCommand(Command):
     # 累计被创
     # =====================================================
 
+    @rank_handler("累计被创")
     async def _rank_total(self, message: Message, args: List[str]) -> RankResult:
 
         dao = get_dao()
@@ -256,6 +292,7 @@ class RankCommand(Command):
     # =====================================================
     # 平均被创
     # =====================================================
+    @rank_handler("平均被创")
     async def _rank_average(self, message: Message, args: List[str]) -> RankResult:
         dao = get_dao()
         guild_id = message.guild_id
@@ -310,6 +347,7 @@ class RankCommand(Command):
     # =====================================================
     # 被创次数
     # =====================================================
+    @rank_handler("被创次数")
     async def _rank_chuang_time(self, message: Message, args: List[str]) -> RankResult:
         dao = get_dao()
         guild_id = message.guild_id
@@ -350,6 +388,7 @@ class RankCommand(Command):
     # 命令统计
     # =====================================================
 
+    @rank_handler("命令")
     async def _rank_command_counts(
         self, message: Message, args: List[str]
     ) -> RankResult:
@@ -376,6 +415,7 @@ class RankCommand(Command):
     # 他的命令统计
     # =====================================================
 
+    @rank_handler("他的命令")
     async def _rank_user_command_counts(
         self, message: Message, args: List[str]
     ) -> RankResult:
@@ -407,9 +447,12 @@ class RankCommand(Command):
             )
         )
 
+    @rank_handler("命令用户")
     async def _rank_command_user_counts(
         self, message: Message, args: List[str]
     ) -> RankResult:
+        if not args:
+            return RankResult(error="请输入命令名")
         command_name = args[0]
         if command_name not in _command_name_to_formal_name:
             command_name = _command_alias_to_name.get(command_name, None)
