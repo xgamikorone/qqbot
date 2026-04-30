@@ -59,7 +59,9 @@ rank_help_str = dedent(
     目前已有以下排行指令:
     —————————————
     🔹 排行榜 被创丨历史被创丨累计被创 | 被创次数 | 平均被创 [最少次数(3)]
-    🔹 排行榜 命令丨他的命令 [@用户(不加则为自己)]丨命令用户 [命令名]"""
+    🔹 排行榜 命令丨他的命令 [@用户(不加则为自己)]丨命令用户 [命令名]
+    🔹 排行榜 老婆 [页数(1)] | 我的老婆 [页数(1)]
+    """
 )
 
 
@@ -528,9 +530,9 @@ class RankCommand(Command):
         else:
             page = 1
 
-        top_data = dao.get_user_wife_counts(user_id, page=1)
+        top_data = dao.get_user_wife_counts(user_id, page=page)
         def render_row(rank: int, row: dict) -> str:
-            return f"{rank}. {row['wife_name']} ({row['count']}次)"
+            return f"{rank}. {row['name']} ({row['count']}次)"
 
         return RankResult(
             RankConfig(
@@ -558,7 +560,7 @@ class RankCommand(Command):
 
         top_data = dao.get_wife_counts(page=page)
         def render_row(rank: int, row: dict) -> str:
-            return f"{rank}. {row['wife_name']} ({row['count']}次)"
+            return f"{rank}. {row['name']} ({row['count']}次)"
 
         return RankResult(
             RankConfig(

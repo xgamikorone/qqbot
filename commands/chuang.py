@@ -14,9 +14,9 @@ _log = logging.get_logger()
 # IMG_HIGH = "https://pic2.ziyuan.wang/user/hanyuu1/2026/02/ge500_71e8b3a9b69c7.gif"
 # IMG_BREAK = "https://pic2.ziyuan.wang/user/hanyuu1/2026/02/record_de6566a4f660d.png"
 
-IMG_LOW = "https://i.imgs.ovh/2026/02/16/yuix7h.gif"
-IMG_HIGH = "https://i.imgs.ovh/2026/02/16/yuiBAe.gif"
-IMG_BREAK = "https://i.imgs.ovh/2026/02/16/yuiXJa.png"
+IMG_LOW = "imgs/chuang/low.gif"
+IMG_HIGH = "imgs/chuang/high.gif"
+IMG_BREAK = "imgs/chuang/break.png"
 
 
 def today_str() -> str:
@@ -108,5 +108,5 @@ class ChuangCommand(Command):
         # 7️⃣ 发送（先图后文 or 合并，看你习惯）
         await message.reply(
             content=msg,
-            image=img,   # botpy 支持 image 参数
+            file_image=img,   # botpy 支持 image 参数
         )
