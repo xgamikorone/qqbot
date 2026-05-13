@@ -24,7 +24,7 @@ from utils.time_utils import beijing_now
 
 _log = logging.get_logger()
 
-@command("查营收", "营收", "revenue")
+# @command("查营收", "营收", "revenue")
 class RevenueCommand(Command):
     name = "revenue"
     cn_name = "查营收"
@@ -608,7 +608,8 @@ class RevenueHelpCommand(Command):
         await self.send_reply(message, revenue_help_str)
 
 
-@command("revenue_v2", "查营收v2")
+# @command("revenue_v2", "查营收v2")
+@command("查营收", "营收", "revenue")
 class RevenueCommandV2(Command):
     name = "revenue_v2"
     cn_name = "查营收v2"
@@ -674,14 +675,30 @@ class RevenueCommandV2(Command):
                 res_str += f"查询{name}的直播数据失败\n\n"
                 continue
 
+            online_members = await get_online_members(last_session_id)
+            # _log.info(f"online_members:\n{online_members}")
+            if not online_members:
+                max_online = 0
+                avg_online = 0
+            else:
+                max_online = online_members["max"]
+                avg_online = online_members["avg"]
+
             guard_revenue = revenue.get("guards", 0)
             gift_revenue = revenue.get("gifts", 0)
             sc_revenue = revenue.get("super_chats", 0)
             total = revenue.get("total", 0)
+            start_time = session_info["start_time"]
+            # erase "T" in start time 2026-03-09T21:01:38 -> 2026-03-09 21:01:38
+            start_time = start_time.replace("T", " ")
+            end_time = "" if session_info["end_time"] is None else session_info["end_time"]
+            if end_time is not None:
+                end_time = end_time.replace("T", " ")
             res_str += (
                 f"主播{name}的最近一场直播营收:\n"
                 f"直播标题:{session_info.get('title', '')}\n"
-                f"直播时间:{session_info.get('start_time', '')}~{session_info.get('end_time', '')}\n"
+                f"直播时间:{start_time}~{end_time}\n"
+                f"同接(最高/平均): {max_online}/{round(avg_online)}\n"
                 f"舰队收入: {round(guard_revenue, 2)}\n"
                 f"礼物收入: {round(gift_revenue, 2)}\n"
                 f"SC收入: {round(sc_revenue, 2)}\n"
