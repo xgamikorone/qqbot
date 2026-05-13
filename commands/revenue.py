@@ -1,4 +1,4 @@
-from datetime import timedelta
+﻿from datetime import timedelta
 from .base import command, Command, cooldown
 from dao import get_dao
 from botpy.message import Message
@@ -608,7 +608,7 @@ class RevenueHelpCommand(Command):
         await self.send_reply(message, revenue_help_str)
 
 
-@command("revenue_v2")
+@command("revenue_v2", "查营收v2")
 class RevenueCommandV2(Command):
     name = "revenue_v2"
     cn_name = "查营收v2"
@@ -693,7 +693,7 @@ class RevenueCommandV2(Command):
         await self.send_reply(message, res_str.rstrip("\n"))
 
 
-@command("super_chat_v2")
+@command("super_chat_v2", "查SCv2")
 class SuperChatCommandV2(Command):
     PAGE_SIZE = 10
     name = "super_chat_v2"
