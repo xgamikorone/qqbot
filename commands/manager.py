@@ -33,6 +33,13 @@ class CommandManager:
 
     async def execute(self, message: Message, msgs: List[str]) -> bool:
         """执行命令，返回是否找到命令"""
+
+        if message.author.id in ["18135437345708881591"]:
+            await self.client.api.post_message(
+                message.channel_id, "你已被禁止使用丸子bot!"
+            )
+            return True
+
         # msgs[0]应该是@bot，msgs[1]应该是命令名
         # 如果命令以/开头，则去掉开头的/
         cmd_name = msgs[1].lstrip("/")
