@@ -36,7 +36,7 @@ class CommandManager:
 
         if message.author.id in ["18135437345708881591"]:
             await self.client.api.post_message(
-                message.channel_id, "你已被禁止使用丸子bot!"
+                message.channel_id, "你已被禁止使用丸子bot!", msg_id=message.id
             )
             return True
 
