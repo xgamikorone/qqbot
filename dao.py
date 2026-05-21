@@ -976,7 +976,7 @@ class Dao:
             ORDER BY MAX(created_at) DESC
             """
             cursor = self.conn.cursor()
-            cursor.execute(sql, (user_id,))
+            cursor.execute(sql, (user_id, guild_id))
             result = cursor.fetchall()
             return [r["user_name"] for r in result if r["user_name"]]
         except sqlite3.Error as e:
