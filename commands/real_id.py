@@ -11,8 +11,15 @@ class RealId(Command):
     cn_name = "真身"
 
     async def execute(self, message: Message, args: List[str]):
-        user_name = message.author.username
-        user = await self.client.api.get_guild_member(message.guild_id, message.author.id)
+        # user_name = message.author.username
+        mentions = message.mentions
+        filtered_users = [u for u in mentions if not u.bot]
+        # _log.info(f"filtered_users: {filtered_users}")
+
+        if not filtered_users:
+            filtered_users = [message.author]
+        user_id = filtered_users[0].id
+        user = await self.client.api.get_guild_member(message.guild_id, user_id)
         user_name2 = user["user"]["username"]
         avatar = user["user"]["avatar"]
 
