@@ -20,7 +20,7 @@ class RealId(Command):
             filtered_users = [message.author]
         user_id = filtered_users[0].id
         user = await self.client.api.get_guild_member(message.guild_id, user_id)
-        user_name2 = user["user"]["username"]
+        user_name = user["user"]["username"]
         avatar = user["user"]["avatar"]
 
-        await self.send_reply(message, f"{user_name2}, {avatar}")
+        await self.send_reply(message, f"{user_name}")
