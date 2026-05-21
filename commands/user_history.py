@@ -21,7 +21,7 @@ class UserHistory(Command):
 
         history_names = get_dao().get_user_history_nicknames(user_id)
 
-        result = f"<@!{user_id}>的曾用昵称:"
+        result = f"<@!{user_id}>的曾用昵称:\n"
         result += "\n".join(history_names)
 
         await self.send_reply(message, result)
