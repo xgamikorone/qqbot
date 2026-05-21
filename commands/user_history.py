@@ -19,7 +19,7 @@ class UserHistory(Command):
         user = filtered_users[0]
         user_id = user.id
 
-        history_names = get_dao().get_user_history_nicknames(user_id)
+        history_names = get_dao().get_user_history_nicknames(user_id, message.guild_id)
 
         result = f"<@!{user_id}>的曾用昵称:\n"
         result += "\n".join(history_names)

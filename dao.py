@@ -965,12 +965,13 @@ class Dao:
             logger.exception(f"获取被创次数排名失败, error: {e}")
             return 0
         
-    def get_user_history_nicknames(self, user_id: str) -> list[str]:
+    def get_user_history_nicknames(self, user_id: str, guild_id) -> list[str]:
         try:
             sql = """
             SELECT user_name
             FROM command_records
             WHERE user_id = ?
+            AND guild_id = ?
             GROUP BY user_name
             ORDER BY MAX(created_at) DESC
             """
