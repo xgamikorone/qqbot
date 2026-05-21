@@ -14,5 +14,6 @@ class RealId(Command):
         user_name = message.author.username
         user = await self.client.api.get_guild_member(message.guild_id, message.author.id)
         user_name2 = user["user"]["username"]
+        avatar = user["user"]["avatar"]
 
-        await self.send_reply(message, f"{user_name}, {user_name2}")
+        await self.send_reply(message, f"{user_name2}, {avatar}")
