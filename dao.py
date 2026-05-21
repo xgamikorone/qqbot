@@ -964,6 +964,23 @@ class Dao:
         except sqlite3.Error as e:
             logger.exception(f"获取被创次数排名失败, error: {e}")
             return 0
+        
+    def get_user_history_nicknames(self, user_id: str) -> list[str]:
+        try:
+            sql = """
+            SELECT user_name
+            FROM command_records
+            WHERE user_id = ?
+            GROUP BY user_name
+            ORDER BY MAX(created_at) DESC
+            """
+            cursor = self.conn.cursor()
+            cursor.execute(sql, (user_id,))
+            result = cursor.fetchall()
+            return [r["user_name"] for r in result if r["user_name"]]
+        except sqlite3.Error as e:
+            logger.exception(f"获取用户历史昵称失败, error: {e}")
+            return []
 
 
 # 单例实例
