@@ -34,6 +34,8 @@ class FakeId(Command):
     async def execute(self, message: Message, args: List[str]):
         mentions = message.mentions
         filtered_users = [u for u in mentions if not u.bot]
+        if not filtered_users:
+            filtered_users = [message.author]
         user_id = filtered_users[0].id
         user = await self.client.api.get_guild_member(message.guild_id, user_id)
 
