@@ -97,7 +97,7 @@ class HelpCommand(Command):
             return
         
         if command_name == "生日快乐":
-            await self.send_reply(message, "格式为 /生日快乐 <用户>")
+            await self.send_reply(message, "格式为 /生日快乐 <to> <from>，to是过生日的人，from是送祝福的人，from可以省略，默认为自己。")
             return
         
         if command_name == "我的老婆":
