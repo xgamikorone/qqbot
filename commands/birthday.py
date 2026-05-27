@@ -9,7 +9,7 @@ from dao import get_dao
 from dotenv import load_dotenv
 
 birthday_template = dedent("""\
-    {to}，今天是你的生日，{from_}为了献上了生日祝福：
+    {to}，今天是你的生日，{from_}为你献上了生日祝福：
     ✨🎉 对所有的烦恼说 bye bye 👋💫
     🎈💖 对所有的快乐说 hi hi 🌈✨
     🎂🎀 亲爱的亲爱的{to}生日快乐 🎊🥳
