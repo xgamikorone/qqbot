@@ -6,7 +6,7 @@ from botpy import logging
 from dao import get_dao
 
 
-@command("用户历史")
+@command("用户历史", "这是谁")
 class UserHistory(Command):
     name = "user_history"
     cn_name = "用户历史"
