@@ -56,7 +56,7 @@ class WhoIsCommand(Command):
             current_nick = usernames.get(user["user_id"], "未知用户")
             result += f"曾用昵称: {user['user_name']}, 现在昵称: {current_nick}\n"
 
-        await self.send_reply(message, result)
+        await self.send_reply(message, result.rstrip("\n"))
 
     async def _fetch_usernames(self, guild_id: str, user_ids: List[str]) -> dict:
         """获取用户在服务器中的当前昵称"""
