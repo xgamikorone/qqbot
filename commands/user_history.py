@@ -54,7 +54,7 @@ class WhoIsCommand(Command):
         result = f"找到{len(users)}个包含'{nickname_keyword}'的用户：\n"
         for user in users:
             current_nick = usernames.get(user["user_id"], "未知用户")
-            result += f"<@!{user['user_id']}> - 曾用昵称: {user['user_name']}, 现在昵称: {current_nick}\n"
+            result += f"曾用昵称: {user['user_name']}, 现在昵称: {current_nick}\n"
 
         await self.send_reply(message, result)
 
