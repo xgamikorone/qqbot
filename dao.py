@@ -964,6 +964,32 @@ class Dao:
         except sqlite3.Error as e:
             logger.exception(f"获取被创次数排名失败, error: {e}")
             return 0
+
+    def get_user_by_nickname_like_in_records(self, nickname: str, guild_id: str) -> list[dict]:
+        """从command_records表中查询包含昵称关键词的用户，返回user_id和user_name列表
+
+        Args:
+            nickname (str): 昵称关键词
+            guild_id (str): 服务器ID
+
+        Returns:
+            list[dict]: 包含user_id和user_name的字典列表
+        """
+        try:
+            sql = """
+            SELECT user_id, user_name
+            FROM command_records
+            WHERE guild_id = ? AND user_name LIKE ?
+            GROUP BY user_id, user_name
+            ORDER BY MAX(created_at) DESC
+            """
+            cursor = self.conn.cursor()
+            cursor.execute(sql, (guild_id, f"%{nickname}%"))
+            result = cursor.fetchall()
+            return [{"user_id": r["user_id"], "user_name": r["user_name"]} for r in result]
+        except sqlite3.Error as e:
+            logger.exception(f"从command_records中查询昵称失败, error: {e}")
+            return []
         
     def get_user_history_nicknames(self, user_id: str, guild_id) -> list[str]:
         try:
