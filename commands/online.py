@@ -43,6 +43,17 @@ class OnlineNumberCommand(Command):
     cn_name = "高能"
 
     async def execute(self, message: Message, args: List[str]):
+        limit = 10
+        if args:
+            arg = args[0].strip().lower()
+            if arg in ("all", "/all", "a", "/a"):
+                limit = None
+            elif arg.isdigit() and int(arg) > 0:
+                limit = int(arg)
+            else:
+                await self.send_reply(message, "参数错误, 请输入正整数或 all")
+                return
+
         sessions = await get_on_live_sessions()
         if sessions is None:
             await self.send_reply(message, "获取在线直播时发生错误！请联系作者。")
@@ -59,16 +70,24 @@ class OnlineNumberCommand(Command):
             lambda x: x["uid"] not in exclusive_uids, sessions
         ))
 
+        total_count = len(sessions)
+        if limit is not None:
+            sessions = sessions[:limit]
+
         res_str = "目前高能:\n"
         res_str += "\n".join(
             [f"{session['name']}: {session['online_count']}" for session in sessions]
         )
+        folded_count = total_count - len(sessions)
+        if folded_count > 0:
+            res_str += f"\n还有{folded_count}位主播的数据已折叠，可使用参数all/a显示全部，或参数n显示前n名。"
         res_str += "\n如数据有误，请联系作者。"
         await self.send_reply(message, res_str)
 
 
 online_help_str = dedent("""\
     输入"高能"/"gn"/"看谁"/"同接"可获取在线同接数。
+    默认显示前10名，参数n显示前n名，参数all/a显示全部。
     """)
 
 
