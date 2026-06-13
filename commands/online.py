@@ -92,14 +92,12 @@ class OnlineNumberCommand(Command):
             lambda x: x["uid"] not in exclusive_uids, sessions
         ))
 
-        always_show_groups, always_show_uids = get_always_show_groups(sessions)
-        normal_sessions = [
-            session for session in sessions if session["uid"] not in always_show_uids
-        ]
+        always_show_groups, _ = get_always_show_groups(sessions)
 
-        total_count = len(normal_sessions)
+        total_count = len(sessions)
+        top_sessions = sessions
         if limit is not None:
-            normal_sessions = normal_sessions[:limit]
+            top_sessions = sessions[:limit]
 
         lines = ["目前高能:"]
         for category, category_sessions in always_show_groups:
@@ -114,11 +112,11 @@ class OnlineNumberCommand(Command):
         lines.append(top_title)
         lines.extend(
             f"{session['name']}: {session['online_count']}"
-            for session in normal_sessions
+            for session in top_sessions
         )
 
         res_str = "\n".join(lines)
-        folded_count = total_count - len(normal_sessions)
+        folded_count = total_count - len(top_sessions)
         if folded_count > 0:
             res_str += f"\n还有{folded_count}位主播的数据已折叠，可使用参数all/a显示全部，或参数n显示前n名。"
         res_str += "\n如数据有误，请联系作者。"
