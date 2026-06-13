@@ -12,7 +12,7 @@ from typing import List
 from botpy import logging
 from dao import get_dao
 from dotenv import load_dotenv
-from .categories import categories
+from .categories import categories, category_to_names
 
 load_dotenv()
 
@@ -30,6 +30,28 @@ exclusive_uids = [
     480680646,
     3546567734725599
 ]
+
+always_show_categories = []
+
+
+def get_always_show_groups(sessions):
+    groups = []
+    shown_uids = set()
+    for category in always_show_categories:
+        category_uids = categories.get(category)
+        if category_uids is None:
+            _log.warning(f"unknown always show category: {category}")
+            continue
+        category_uid_set = set(category_uids)
+        category_sessions = [
+            session for session in sessions
+            if session["uid"] in category_uid_set and session["uid"] not in shown_uids
+        ]
+        if not category_sessions:
+            continue
+        groups.append((category, category_sessions))
+        shown_uids.update(session["uid"] for session in category_sessions)
+    return groups, shown_uids
 
 
 
@@ -70,15 +92,33 @@ class OnlineNumberCommand(Command):
             lambda x: x["uid"] not in exclusive_uids, sessions
         ))
 
-        total_count = len(sessions)
-        if limit is not None:
-            sessions = sessions[:limit]
+        always_show_groups, always_show_uids = get_always_show_groups(sessions)
+        normal_sessions = [
+            session for session in sessions if session["uid"] not in always_show_uids
+        ]
 
-        res_str = "目前高能:\n"
-        res_str += "\n".join(
-            [f"{session['name']}: {session['online_count']}" for session in sessions]
+        total_count = len(normal_sessions)
+        if limit is not None:
+            normal_sessions = normal_sessions[:limit]
+
+        lines = ["目前高能:"]
+        for category, category_sessions in always_show_groups:
+            category_name = category_to_names.get(category, category)
+            lines.append(f"{category_name}:")
+            lines.extend(
+                f"{session['name']}: {session['online_count']}"
+                for session in category_sessions
+            )
+
+        top_title = "top all:" if limit is None else f"top {limit}:"
+        lines.append(top_title)
+        lines.extend(
+            f"{session['name']}: {session['online_count']}"
+            for session in normal_sessions
         )
-        folded_count = total_count - len(sessions)
+
+        res_str = "\n".join(lines)
+        folded_count = total_count - len(normal_sessions)
         if folded_count > 0:
             res_str += f"\n还有{folded_count}位主播的数据已折叠，可使用参数all/a显示全部，或参数n显示前n名。"
         res_str += "\n如数据有误，请联系作者。"

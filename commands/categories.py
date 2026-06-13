@@ -41,3 +41,16 @@ categories = {
     "e": eoe,
     "eoe": eoe
 }
+
+category_to_names = {
+    "w": "四禧丸子",
+    "wan": "四禧丸子",
+    "v": "vr",
+    "vr": "vr",
+    "p": "psp",
+    "psp": "psp",
+    "a": "asoul",
+    "asoul": "asoul",
+    "e": "eoe",
+    "eoe": "eoe"
+}
