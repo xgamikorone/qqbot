@@ -31,7 +31,7 @@ exclusive_uids = [
     3546567734725599
 ]
 
-always_show_categories = []
+always_show_categories = ["wan"]
 
 
 def get_always_show_groups(sessions):
