@@ -594,16 +594,16 @@ class Dao:
         return dict(row) if row else {}
     
     def get_user_wife_counts(self, user_id: str, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
-        """获取用户的不同老婆次数统计，按降序排序，分页"""
+        """获取用户的不同老婆次数统计，同名老婆合并，按降序排序，分页"""
         offset = (page - 1) * page_size
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            SELECT w.id, w.url, w.name, COUNT(*) AS count
+            SELECT MIN(w.id) AS id, MIN(w.url) AS url, w.name, COUNT(*) AS count
             FROM user_wife_daily uw
             JOIN wife_urls w ON uw.wife_id = w.id
             WHERE uw.user_id = ?
-            GROUP BY w.id, w.url, w.name
+            GROUP BY w.name
             ORDER BY count DESC
             LIMIT ? OFFSET ?
             """,
@@ -614,15 +614,15 @@ class Dao:
         return [dict(row) for row in rows]
     
     def get_wife_counts(self, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
-        """获取每个老婆的次数统计，按降序排序，分页"""
+        """获取每个老婆的次数统计，同名老婆合并，按降序排序，分页"""
         offset = (page - 1) * page_size
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            SELECT w.id, w.url, w.name, COUNT(*) AS count
+            SELECT MIN(w.id) AS id, MIN(w.url) AS url, w.name, COUNT(*) AS count
             FROM user_wife_daily uw
             JOIN wife_urls w ON uw.wife_id = w.id
-            GROUP BY w.id, w.url, w.name
+            GROUP BY w.name
             ORDER BY count DESC
             LIMIT ? OFFSET ?
             """,
