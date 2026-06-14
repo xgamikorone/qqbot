@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from utils.time_utils import beijing_now_str
 
 DB_NAME = "user.db"
+DEFAULT_WIFE_REFRESH_TIME = "08:00"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -44,6 +45,13 @@ class Dao:
 
         -- 为昵称建立索引，加快查询
         CREATE INDEX IF NOT EXISTS idx_nickname ON user_nicknames(nickname);
+
+        -- Bot 配置
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
+        );
 
         -- 子表：调用记录
         CREATE TABLE IF NOT EXISTS command_records (
@@ -461,6 +469,41 @@ class Dao:
 
     def _get_today_str(self):
         return beijing_now_str("%Y-%m-%d")
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            return row["value"] if row else default
+        except sqlite3.Error as e:
+            logger.exception(f"获取配置失败, key: {key}, error: {e}")
+            return default
+
+    def set_setting(self, key: str, value: str) -> bool:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO bot_settings (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+                """,
+                (key, value, beijing_now_str()),
+            )
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.exception(f"设置配置失败, key: {key}, value: {value}, error: {e}")
+            return False
+
+    def get_wife_refresh_time(self) -> str:
+        return self.get_setting("wife_refresh_time", DEFAULT_WIFE_REFRESH_TIME)
+
+    def set_wife_refresh_time(self, refresh_time: str) -> bool:
+        return self.set_setting("wife_refresh_time", refresh_time)
     
     ### 老婆相关操作 ###
 

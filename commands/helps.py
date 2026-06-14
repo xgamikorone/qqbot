@@ -26,6 +26,7 @@ overall_help_message = dedent(
     /同接 查看当前直播同接人数
     /斗虫 查看数据对比
     /来个老婆 每日获得一个随机老婆
+    /老婆刷新时间 查看或设置每日老婆刷新时间
     /我的老婆 查看在某一天的老婆
     /排行榜 查看各项排行榜
     /答案之书 向答案之书提问
@@ -85,7 +86,11 @@ class HelpCommand(Command):
             return
         
         if command_name == "来个老婆":
-            await self.send_reply(message, "直接输入就可以了，这还用我教你吗？")
+            await self.send_reply(message, "直接输入就可以了；如果还没到今日刷新时间，会提示还需要等待多久。")
+            return
+        
+        if command_name == "老婆刷新时间":
+            await self.send_reply(message, "格式为 /老婆刷新时间 查看当前刷新时间；管理员可用 /设置老婆刷新时间 <HH:MM> 修改，例如：/设置老婆刷新时间 08:00")
             return
         
         if command_name == "排行榜":
