@@ -89,9 +89,13 @@ class BilibiliPollClient:
         }
 
         print(self.API_URL, params)  # 调试用
-
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0",
+            "Origin": "https://live.bilibili.com",
+            "Referer": "https://live.bilibili.com/",
+        }
         try:
-            async with self.session.get(self.API_URL, params=params) as response:
+            async with self.session.get(self.API_URL, params=params, headers=headers) as response:
                 response.raise_for_status()
                 payload = await response.json(content_type=None)
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
