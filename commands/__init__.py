@@ -24,7 +24,8 @@ from . import (
     current_time,
     bv,
     user_history,
-    real_id
+    real_id,
+    poll
 )
 
 __all__ = ["command", "Command", "_command_registry", "CommandManager", "_command_name_to_formal_name", "_command_alias_to_name"]
