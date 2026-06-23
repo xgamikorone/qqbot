@@ -88,6 +88,8 @@ class BilibiliPollClient:
             "vote_id": poll.remote_vote_id,
         }
 
+        print(self.API_URL, params)  # 调试用
+
         try:
             async with self.session.get(self.API_URL, params=params) as response:
                 response.raise_for_status()
