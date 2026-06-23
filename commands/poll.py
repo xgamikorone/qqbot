@@ -37,7 +37,7 @@ class PollGroupResult:
 class BilibiliGroupConfig:
     name: str
     remote_group_id: str
-    page_size: int = 12
+    page_size: int = 30
 
 
 @dataclass(frozen=True)
