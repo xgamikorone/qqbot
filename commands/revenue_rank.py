@@ -1,6 +1,7 @@
 ﻿import asyncio
 import os
 import platform
+import re
 from datetime import datetime
 from textwrap import dedent
 import traceback
@@ -74,10 +75,68 @@ def _is_valid_month(month: str) -> bool:
     return month.isdigit() and len(month) == 6 and 1 <= int(month[4:]) <= 12
 
 
+def _month_range(start_month: str, end_month: str) -> List[str]:
+    months = []
+    cur_month = start_month
+    while cur_month <= end_month:
+        months.append(cur_month)
+        cur_month = _month_add(cur_month, 1)
+    return months
+
+
+def parse_month_alias(month_arg: str) -> Optional[List[str]]:
+    now = datetime.now()
+    cur_month = now.strftime("%Y%m")
+    cur_year = now.year
+    month_arg = month_arg.strip().lower()
+
+    alias_map = {
+        "本月": [cur_month],
+        "这个月": [cur_month],
+        "这月": [cur_month],
+        "当月": [cur_month],
+        "上月": [_month_add(cur_month, -1)],
+        "上个月": [_month_add(cur_month, -1)],
+        "今年": _month_range(f"{cur_year}01", cur_month),
+        "本年": _month_range(f"{cur_year}01", cur_month),
+        "今年以来": _month_range(f"{cur_year}01", cur_month),
+        "去年": _month_range(f"{cur_year - 1}01", f"{cur_year - 1}12"),
+        "上一年": _month_range(f"{cur_year - 1}01", f"{cur_year - 1}12"),
+        "今年上半年": _month_range(f"{cur_year}01", f"{cur_year}06"),
+        "本年上半年": _month_range(f"{cur_year}01", f"{cur_year}06"),
+        "去年上半年": _month_range(f"{cur_year - 1}01", f"{cur_year - 1}06"),
+        "去年下半年": _month_range(f"{cur_year - 1}07", f"{cur_year - 1}12"),
+    }
+    if month_arg in alias_map:
+        return alias_map[month_arg]
+
+    if month_arg in ["今年下半年", "本年下半年"]:
+        if cur_month < f"{cur_year}07":
+            return []
+        return _month_range(f"{cur_year}07", cur_month)
+
+    match = re.fullmatch(r"(近|最近)(\d+)个?月", month_arg)
+    if match:
+        count = int(match.group(2))
+        if count <= 0:
+            return None
+        start_month = _month_add(cur_month, -(count - 1))
+        return _month_range(start_month, cur_month)
+
+    if re.fullmatch(r"(近|最近)一年", month_arg):
+        return _month_range(_month_add(cur_month, -11), cur_month)
+
+    return None
+
+
 def parse_months(month_arg: str) -> Optional[List[str]]:
     month_arg = month_arg.strip()
     if not month_arg:
         return None
+
+    alias_months = parse_month_alias(month_arg)
+    if alias_months is not None:
+        return alias_months
 
     if "-" in month_arg:
         start_month, end_month = [part.strip() for part in month_arg.split("-", 1)]
@@ -86,12 +145,7 @@ def parse_months(month_arg: str) -> Optional[List[str]]:
         if start_month > end_month:
             return None
 
-        months = []
-        cur_month = start_month
-        while cur_month <= end_month:
-            months.append(cur_month)
-            cur_month = _month_add(cur_month, 1)
-        return months
+        return _month_range(start_month, end_month)
 
     months = [part.strip() for part in month_arg.split(",") if part.strip()]
     if not months or any(not _is_valid_month(month) for month in months):
@@ -232,7 +286,7 @@ def merge_revenue_rank(monthly_data: List[Tuple[str, Dict[str, Any]]]) -> Dict[s
 async def get_revenue_rank_with_retry(month: str, filter: str, retry: int = 3):
     while retry > 0:
         data = await get_revenue_rank(month, filter)
-        _log.info(f"Got revenue rank data for {month}: {data}")
+        _log.info(f"Got revenue rank data for {month}")
         if data is not None:
             data["month"] = month
             return data
@@ -497,7 +551,7 @@ class RevenueRankCommand(Command):
         if months is None:
             await self.send_reply(
                 message,
-                "月份格式错误，请使用YYYYMM、YYYYMM,YYYYMM 或 YYYYMM-YYYYMM",
+                "月份格式错误，请使用YYYYMM、YYYYMM,YYYYMM、YYYYMM-YYYYMM，或 本月/上月/今年/去年/近N个月",
             )
             return
 
@@ -610,6 +664,7 @@ revenue_rank_help_str = dedent(
     /m <month>    指定月份，格式为YYYYMM。例如: 202601表示2026年1月。默认为当前月份。
                   支持多个指定月份: 202601,202603
                   支持连续月份区间: 202601-202603
+                  支持简单时间词: 本月、上月、今年、去年、今年上半年、去年下半年、近3个月、最近一年
     
     /n <top_n>    显示前N名主播的数据。如果不指定，则显示全部主播。
     
@@ -619,6 +674,9 @@ revenue_rank_help_str = dedent(
 
     斗虫 /f vr /m 202601-202603 /n 20
     生成2026年1月至3月VR主播收入总和排行榜，主播某个月没有数据时按0处理。
+
+    斗虫 /f vr /m 今年 /n 20
+    生成今年以来VR主播收入总和排行榜。
 """
 )
 
