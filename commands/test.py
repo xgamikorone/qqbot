@@ -15,5 +15,14 @@ class TestCommand(Command):
         sub_cmd = args[0] if args else None
         if sub_cmd == "wife":
             wife_id = args[1] if len(args) > 1 else 0
-            
+
+
+@command("作者测试", "owner_test")
+class OwnerTestCommand(Command):
+    name = "owner_test"
+    cn_name = "作者测试"
+    owner_only = True
+
+    async def execute(self, message: Message, args: List[str]):
+        await self.send_reply(message, f"<@!{message.author.id}> 作者权限测试通过。")
 
