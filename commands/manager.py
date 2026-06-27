@@ -1,6 +1,7 @@
 from typing import List
 from botpy.message import Message
 from botpy import logging, Client
+from dao import get_dao
 from .base import Command, _command_registry, command
 
 _log = logging.get_logger()
@@ -60,14 +61,19 @@ class CommandManager:
 
         if cmd_name in self.commands:
             args = msgs[2:]
+            command = self.commands[cmd_name]
+            if command.owner_only and not get_dao().is_bot_owner(message.author.id):
+                await command.send_reply(message, "这个命令只有作者本人可以使用。")
+                return True
+
             try:
-                await self.commands[cmd_name].execute(message, args)
+                await command.execute(message, args)
             except Exception as e:
                 _log.exception(f"Error executing command {cmd_name}: {e}")
-                await self.commands[cmd_name].send_reply(
+                await command.send_reply(
                     message, f"执行命令时发生错误: {e}"
                 )
-            await self.commands[cmd_name].after_execute(message, args)
+            await command.after_execute(message, args)
 
             return True
         return False

@@ -54,6 +54,8 @@ class Command(ABC):
     """所有命令的基类"""
     name = "base"
     cn_name = "基础命令"
+    owner_only = False
+
     def __init__(self, client: Client):
         self.client = client
 

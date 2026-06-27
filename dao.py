@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import logging
 from typing import Any, Dict, List
@@ -24,6 +25,10 @@ class Dao:
             (uid, beijing_now_str()),
         )
         self.conn.commit()
+
+    def _get_env_owner_ids(self) -> set[str]:
+        owner_ids = os.getenv("BOT_OWNER_IDS") or os.getenv("OWNER_IDS", "")
+        return {owner_id.strip() for owner_id in owner_ids.split(",") if owner_id.strip()}
 
     def _init_db(self):
         sql = """
@@ -51,6 +56,12 @@ class Dao:
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,
             updated_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
+        );
+
+        CREATE TABLE IF NOT EXISTS bot_owners (
+            user_id TEXT PRIMARY KEY,
+            note TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
         );
 
         -- 子表：调用记录
@@ -112,6 +123,62 @@ class Dao:
 
         # self._reset_wives()
         # self._add_wives()
+
+    def is_bot_owner(self, user_id: str) -> bool:
+        user_id = str(user_id)
+        if user_id in self._get_env_owner_ids():
+            return True
+
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM bot_owners WHERE user_id = ? LIMIT 1",
+                (user_id,),
+            )
+            return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            logger.exception(f"check bot owner failed, user_id: {user_id}, error: {e}")
+            return False
+
+    def add_bot_owner(self, user_id: str, note: str = "") -> bool:
+        try:
+            self.conn.execute(
+                """
+                INSERT OR IGNORE INTO bot_owners (user_id, note, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (str(user_id), note, beijing_now_str()),
+            )
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.exception(f"add bot owner failed, user_id: {user_id}, error: {e}")
+            return False
+
+    def remove_bot_owner(self, user_id: str) -> bool:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM bot_owners WHERE user_id = ?", (str(user_id),))
+            self.conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.exception(f"remove bot owner failed, user_id: {user_id}, error: {e}")
+            return False
+
+    def get_bot_owners(self) -> list[dict[str, Any]]:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                """
+                SELECT user_id, note, created_at
+                FROM bot_owners
+                ORDER BY created_at ASC
+                """
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.exception(f"get bot owners failed, error: {e}")
+            return []
 
     def _reset_wives(self):
         sql = """
