@@ -1,5 +1,6 @@
 ﻿from dataclasses import dataclass
 from typing import List, Callable, Awaitable, Optional, Dict, Any
+import re
 from utils.time_utils import beijing_now_str
 
 from .base import (
@@ -84,11 +85,11 @@ class RankCommand(Command):
             await self.send_reply(message, rank_help_str)
             return
 
-        cmd = args[0]
+        cmd, rank_args = self._split_attached_rank_arg(args)
         result = await self._get_rank_config(
             cmd=cmd,
             message=message,
-            args=args[1:],
+            args=rank_args,
         )
 
         if not result:
@@ -113,7 +114,17 @@ class RankCommand(Command):
     async def _get_rank_config(
         self, cmd: str, message: Message, args: List[str]
     ) -> RankResult:
+        rank_map = self._get_rank_map()
 
+        handler = rank_map.get(cmd)
+        if not handler:
+            return RankResult(error="未知指令")
+
+        return await handler(message, args)
+
+    def _get_rank_map(
+        self,
+    ) -> Dict[str, Callable[[Message, List[str]], Awaitable[RankResult]]]:
         rank_map = {
             "被创": self._rank_today,
             "历史被创": self._rank_history,
@@ -125,12 +136,22 @@ class RankCommand(Command):
             "命令用户": self._rank_command_user_counts,
         }
         rank_map.update(self._get_rank_handlers())
+        return rank_map
 
-        handler = rank_map.get(cmd)
-        if not handler:
-            return RankResult(error="未知指令")
+    def _split_attached_rank_arg(self, args: List[str]) -> tuple[str, List[str]]:
+        cmd = args[0]
+        rank_args = args[1:]
 
-        return await handler(message, args)
+        for name in sorted(self._get_rank_map(), key=len, reverse=True):
+            if cmd != name and cmd.startswith(name):
+                attached_arg = cmd[len(name) :]
+                return name, [attached_arg] + rank_args
+
+        return cmd, rank_args
+
+    def _parse_mention_user_id(self, value: str) -> str | None:
+        match = re.fullmatch(r"<@!?(\d+)>", value)
+        return match.group(1) if match else None
 
     def _get_rank_handlers(
         self,
@@ -426,11 +447,23 @@ class RankCommand(Command):
         filtered_users = [u for u in mentions if not u.bot]
         _log.info(f"filtered_users: {filtered_users}")
 
-        if not filtered_users:
-            filtered_users = [message.author]
+        if filtered_users:
+            user = filtered_users[0]
+            user_id = user.id
+            username = user.username
+        else:
+            user_id = self._parse_mention_user_id(args[0]) if args else None
+            if user_id:
+                try:
+                    user = await self.client.api.get_guild_member(message.guild_id, user_id)
+                    username = user["nick"]
+                except Exception:
+                    username = f"<@!{user_id}>"
+            else:
+                user = message.author
+                user_id = user.id
+                username = user.username
 
-        user = filtered_users[0]
-        user_id = user.id
         guild_id = message.guild_id
         top_data = dao.get_user_command_counts_cur_guild(user_id, guild_id)[:10]
 
@@ -442,7 +475,7 @@ class RankCommand(Command):
 
         return RankResult(
             RankConfig(
-                title=f"{user.username}的命令统计:",
+                title=f"{username}的命令统计:",
                 top_data=top_data,
                 render_row=render_row,
                 render_footer=None,

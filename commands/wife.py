@@ -178,3 +178,4 @@ class WifeRefreshTimeCommand(Command):
             await self.send_reply(message, f"老婆刷新时间已设置为：{refresh_time}")
         else:
             await self.send_reply(message, "设置老婆刷新时间失败，请稍后再试！")
+
