@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from botpy.message import Message
 from botpy import logging, Client
 from .base import Command, _command_registry, command
@@ -31,6 +31,27 @@ class CommandManager:
         for alias, cmd_class in _command_registry.items():
             self.commands[alias] = cmd_class(self.client)
 
+    def _split_chained_msgs(self, msgs: List[str]) -> List[List[str]]:
+        """按 && 拆分命令链，保留每段命令的 @bot 前缀。"""
+        if len(msgs) < 2:
+            return [msgs]
+
+        prefix = msgs[0]
+        segments: List[List[str]] = []
+        current: List[str] = [prefix]
+
+        for token in msgs[1:]:
+            parts = token.split("&&")
+            for index, part in enumerate(parts):
+                if index > 0:
+                    segments.append(current)
+                    current = [prefix]
+                if part:
+                    current.append(part)
+
+        segments.append(current)
+        return segments
+
     async def execute(self, message: Message, msgs: List[str]) -> bool:
         """执行命令，返回是否找到命令"""
 
@@ -39,6 +60,38 @@ class CommandManager:
                 message.channel_id, "你已被禁止使用丸子bot!", msg_id=message.id
             )
             return True
+
+        chained_msgs = self._split_chained_msgs(msgs)
+        if len(chained_msgs) > 1:
+            found_any = False
+            for chained_msg in chained_msgs:
+                if len(chained_msg) < 2:
+                    await self.client.api.post_message(
+                        message.channel_id,
+                        "&& 前后都需要有命令",
+                        msg_id=message.id,
+                    )
+                    return True
+
+                found, success = await self._execute_one(message, chained_msg)
+                found_any = found_any or found
+                if not found:
+                    if found_any:
+                        await self.client.api.post_message(
+                            message.channel_id,
+                            f"未知命令: {chained_msg[1]}",
+                            msg_id=message.id,
+                        )
+                    return found_any
+                if not success:
+                    break
+            return found_any
+
+        found, _ = await self._execute_one(message, msgs)
+        return found
+
+    async def _execute_one(self, message: Message, msgs: List[str]) -> Tuple[bool, bool]:
+        """执行单条命令，返回 (是否找到命令, 是否执行成功)。"""
 
         # msgs[0]应该是@bot，msgs[1]应该是命令名
         # 如果命令以/开头，则去掉开头的/
@@ -60,14 +113,16 @@ class CommandManager:
 
         if cmd_name in self.commands:
             args = msgs[2:]
+            success = True
             try:
                 await self.commands[cmd_name].execute(message, args)
             except Exception as e:
+                success = False
                 _log.exception(f"Error executing command {cmd_name}: {e}")
                 await self.commands[cmd_name].send_reply(
                     message, f"执行命令时发生错误: {e}"
                 )
             await self.commands[cmd_name].after_execute(message, args)
 
-            return True
-        return False
+            return True, success
+        return False, False
