@@ -1,10 +1,11 @@
 ﻿import asyncio
 import os
 import platform
+import re
 from datetime import datetime
 from textwrap import dedent
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 import matplotlib
@@ -41,6 +42,259 @@ _log = logging.get_logger()
 
 
 url = "https://img.scdn.io/api/v1.php"
+
+
+SUM_FIELDS = {
+    "total_revenue",
+    "effective_days",
+    "guard_1",
+    "guard_2",
+    "guard_3",
+    "gift",
+    "super_chat",
+    "guard",
+}
+
+
+SNAPSHOT_FIELDS = {
+    "anchor_name",
+    "attention",
+    "status",
+}
+
+
+def _month_add(month: str, offset: int) -> str:
+    year = int(month[:4])
+    month_num = int(month[4:]) + offset
+    year += (month_num - 1) // 12
+    month_num = (month_num - 1) % 12 + 1
+    return f"{year}{month_num:02d}"
+
+
+def _is_valid_month(month: str) -> bool:
+    return month.isdigit() and len(month) == 6 and 1 <= int(month[4:]) <= 12
+
+
+def _month_range(start_month: str, end_month: str) -> List[str]:
+    months = []
+    cur_month = start_month
+    while cur_month <= end_month:
+        months.append(cur_month)
+        cur_month = _month_add(cur_month, 1)
+    return months
+
+
+def parse_month_alias(month_arg: str) -> Optional[List[str]]:
+    now = datetime.now()
+    cur_month = now.strftime("%Y%m")
+    cur_year = now.year
+    month_arg = month_arg.strip().lower()
+
+    alias_map = {
+        "本月": [cur_month],
+        "这个月": [cur_month],
+        "这月": [cur_month],
+        "当月": [cur_month],
+        "上月": [_month_add(cur_month, -1)],
+        "上个月": [_month_add(cur_month, -1)],
+        "今年": _month_range(f"{cur_year}01", cur_month),
+        "本年": _month_range(f"{cur_year}01", cur_month),
+        "今年以来": _month_range(f"{cur_year}01", cur_month),
+        "去年": _month_range(f"{cur_year - 1}01", f"{cur_year - 1}12"),
+        "上一年": _month_range(f"{cur_year - 1}01", f"{cur_year - 1}12"),
+        "今年上半年": _month_range(f"{cur_year}01", f"{cur_year}06"),
+        "本年上半年": _month_range(f"{cur_year}01", f"{cur_year}06"),
+        "去年上半年": _month_range(f"{cur_year - 1}01", f"{cur_year - 1}06"),
+        "去年下半年": _month_range(f"{cur_year - 1}07", f"{cur_year - 1}12"),
+    }
+    if month_arg in alias_map:
+        return alias_map[month_arg]
+
+    if month_arg in ["今年下半年", "本年下半年"]:
+        if cur_month < f"{cur_year}07":
+            return []
+        return _month_range(f"{cur_year}07", cur_month)
+
+    match = re.fullmatch(r"(近|最近)(\d+)个?月", month_arg)
+    if match:
+        count = int(match.group(2))
+        if count <= 0:
+            return None
+        start_month = _month_add(cur_month, -(count - 1))
+        return _month_range(start_month, cur_month)
+
+    if re.fullmatch(r"(近|最近)一年", month_arg):
+        return _month_range(_month_add(cur_month, -11), cur_month)
+
+    return None
+
+
+def parse_months(month_arg: str) -> Optional[List[str]]:
+    month_arg = month_arg.strip()
+    if not month_arg:
+        return None
+
+    alias_months = parse_month_alias(month_arg)
+    if alias_months is not None:
+        return alias_months
+
+    if "-" in month_arg:
+        start_month, end_month = [part.strip() for part in month_arg.split("-", 1)]
+        if not _is_valid_month(start_month) or not _is_valid_month(end_month):
+            return None
+        if start_month > end_month:
+            return None
+
+        return _month_range(start_month, end_month)
+
+    months = [part.strip() for part in month_arg.split(",") if part.strip()]
+    if not months or any(not _is_valid_month(month) for month in months):
+        return None
+
+    return list(dict.fromkeys(months))
+
+
+def format_months(months: List[str]) -> str:
+    if len(months) == 1:
+        return months[0]
+
+    expected_months = []
+    cur_month = months[0]
+    while cur_month <= months[-1]:
+        expected_months.append(cur_month)
+        cur_month = _month_add(cur_month, 1)
+
+    if months == expected_months:
+        return f"{months[0]}-{months[-1]}"
+
+    return ",".join(months)
+
+
+def _to_number(value: Any) -> float:
+    try:
+        if value is None or value == "":
+            return 0.0
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _duration_to_seconds(value: Any) -> int:
+    if value is None or value == "":
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    if not isinstance(value, str):
+        return 0
+
+    value = value.strip()
+    if value.isdigit():
+        return int(value)
+
+    if ":" in value:
+        parts = value.split(":")
+        if all(part.isdigit() for part in parts):
+            seconds = 0
+            for part in parts:
+                seconds = seconds * 60 + int(part)
+            return seconds
+
+    total = 0
+    num = ""
+    units = {"天": 86400, "日": 86400, "时": 3600, "分": 60, "秒": 1}
+    for char in value:
+        if char.isdigit() or char == ".":
+            num += char
+        elif char in units and num:
+            total += int(float(num) * units[char])
+            num = ""
+    return total
+
+
+def _seconds_to_duration(seconds: int) -> str:
+    hours, remainder = divmod(max(0, seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}:{minutes:02d}:{seconds:02d}"
+
+
+def _anchor_key(anchor: Dict[str, Any]) -> str:
+    for key in ["uid", "room_id", "anchor_id", "mid"]:
+        value = anchor.get(key)
+        if value is not None and value != "":
+            return f"{key}:{value}"
+    return f"name:{anchor.get('anchor_name', '')}"
+
+
+def merge_revenue_rank(monthly_data: List[Tuple[str, Dict[str, Any]]]) -> Dict[str, Any]:
+    merged_anchors: Dict[str, Dict[str, Any]] = {}
+    duration_seconds: Dict[str, int] = {}
+
+    for month, data in monthly_data:
+        for anchor in data.get("anchors", []):
+            key = _anchor_key(anchor)
+            merged = merged_anchors.setdefault(
+                key,
+                {
+                    **anchor,
+                    **{field: 0 for field in SUM_FIELDS},
+                    "live_duration": "0:00:00",
+                    "months": [],
+                    "missing_months": [],
+                },
+            )
+
+            merged["months"].append(month)
+            for field in SUM_FIELDS:
+                merged[field] = _to_number(merged.get(field)) + _to_number(
+                    anchor.get(field)
+                )
+            duration_seconds[key] = duration_seconds.get(key, 0) + _duration_to_seconds(
+                anchor.get("live_duration")
+            )
+
+            for field in SNAPSHOT_FIELDS:
+                if field in anchor:
+                    merged[field] = anchor[field]
+
+            for field, value in anchor.items():
+                if field not in SUM_FIELDS and field not in SNAPSHOT_FIELDS:
+                    merged.setdefault(field, value)
+
+    all_months = [month for month, _ in monthly_data]
+    for key, anchor in merged_anchors.items():
+        appeared_months = set(anchor["months"])
+        anchor["missing_months"] = [
+            month for month in all_months if month not in appeared_months
+        ]
+        anchor["live_duration"] = _seconds_to_duration(duration_seconds.get(key, 0))
+        for field in ["effective_days", "guard_1", "guard_2", "guard_3"]:
+            anchor[field] = int(anchor.get(field, 0))
+
+    latest_data = monthly_data[-1][1]
+    return {
+        **latest_data,
+        "filter": latest_data.get("filter", monthly_data[-1][1].get("filter")),
+        "month": format_months(all_months),
+        "months": all_months,
+        "anchors": list(merged_anchors.values()),
+        "refresh_time": latest_data.get(
+            "refresh_time", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ),
+    }
+
+
+async def get_revenue_rank_with_retry(month: str, filter: str, retry: int = 3):
+    while retry > 0:
+        data = await get_revenue_rank(month, filter)
+        _log.info(f"Got revenue rank data for {month}")
+        if data is not None:
+            data["month"] = month
+            return data
+
+        retry -= 1
+        await asyncio.sleep(1)
+
+    return None
 
 
 async def upload_image(
@@ -293,8 +547,12 @@ class RevenueRankCommand(Command):
             await self.send_reply(message, "过滤器错误，请使用vr/psp/all")
             return
 
-        if not month.isdigit() or len(month) != 6:
-            await self.send_reply(message, "月份格式错误，请使用YYYYMM格式")
+        months = parse_months(month)
+        if months is None:
+            await self.send_reply(
+                message,
+                "月份格式错误，请使用YYYYMM、YYYYMM,YYYYMM、YYYYMM-YYYYMM，或 本月/上月/今年/去年/近N个月",
+            )
             return
 
         if top_n is not None:
@@ -303,28 +561,36 @@ class RevenueRankCommand(Command):
                 return
             top_n = int(top_n)
 
-        retry = 3
-        success = False
+        results = await asyncio.gather(
+            *[get_revenue_rank_with_retry(month, filter) for month in months]
+        )
+        monthly_data = [
+            (month, data) for month, data in zip(months, results) if data is not None
+        ]
 
-        while retry > 0:
-
-            data = await get_revenue_rank(month, filter)
-            _log.info(f"Got revenue rank data: {data}")
-            if data is None or len(data.get("anchors", [])) == 0:
-
-                retry -= 1
-                await asyncio.sleep(1)
-                continue
-
-            success = True
-            break
-
-        if not success:
+        if not monthly_data or not any(
+            len(data.get("anchors", [])) > 0 for _, data in monthly_data
+        ):
             await self.send_reply(message, "获取数据失败，请稍后再试")
             return
 
+        failed_months = [
+            month for month, data in zip(months, results) if data is None
+        ]
+        if len(monthly_data) == 1:
+            data = monthly_data[0][1]
+        else:
+            data = merge_revenue_rank(monthly_data)
+        data["filter"] = filter
+
         await self.send_reply(
-            message, f"正在生成{month} {filter}主播数据排行榜，请稍后……"
+            message,
+            f"正在生成{data['month']} {filter}主播数据排行榜，请稍后……"
+            + (
+                f"\n以下月份获取失败，已跳过: {', '.join(failed_months)}"
+                if failed_months
+                else ""
+            ),
         )
         try:
             path = draw_rank_table(data, top_n)  # type: ignore
@@ -396,12 +662,21 @@ revenue_rank_help_str = dedent(
                   all - VR+PSP主播
     
     /m <month>    指定月份，格式为YYYYMM。例如: 202601表示2026年1月。默认为当前月份。
+                  支持多个指定月份: 202601,202603
+                  支持连续月份区间: 202601-202603
+                  支持简单时间词: 本月、上月、今年、去年、今年上半年、去年下半年、近3个月、最近一年
     
     /n <top_n>    显示前N名主播的数据。如果不指定，则显示全部主播。
     
     示例:
     斗虫 /f vr /m 202601 /n 20
     生成2026年1月VR主播收入排行榜，显示前20名主播的数据。
+
+    斗虫 /f vr /m 202601-202603 /n 20
+    生成2026年1月至3月VR主播收入总和排行榜，主播某个月没有数据时按0处理。
+
+    斗虫 /f vr /m 今年 /n 20
+    生成今年以来VR主播收入总和排行榜。
 """
 )
 
