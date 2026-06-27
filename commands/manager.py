@@ -1,3 +1,4 @@
+from html import unescape
 from typing import List, Tuple
 from botpy.message import Message
 from botpy import logging, Client
@@ -41,6 +42,7 @@ class CommandManager:
         current: List[str] = [prefix]
 
         for token in msgs[1:]:
+            token = unescape(token)
             parts = token.split("&&")
             for index, part in enumerate(parts):
                 if index > 0:
