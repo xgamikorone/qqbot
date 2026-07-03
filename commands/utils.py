@@ -43,9 +43,11 @@ def _days_in_month(year: int, month: int) -> int:
 TODAY_STRS = ["今天", "today", "今日", "本日"]
 YESTERDAY_STRS = ["昨天", "yesterday", "昨日"]
 
-def convert_str_to_date(date_str: str) -> Optional[datetime.date]:
+def convert_str_to_date(
+    date_str: str, today: Optional[datetime.date] = None
+) -> Optional[datetime.date]:
     date_str = date_str.strip()
-    today = datetime.date.today()
+    today = today or datetime.date.today()
 
     # ===== 1. 相对时间 =====
     if date_str in TODAY_STRS:

@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 import os
 import re
 from commands.utils import is_admin, convert_str_to_date
@@ -118,10 +117,10 @@ class MyWifeCommand(Command):
         dao = get_dao()
 
         if not args:
-            date_str = datetime.date.today().strftime("%Y-%m-%d")
+            date_str = beijing_now().strftime("%Y-%m-%d")
         else:
             arg = args[0]
-            date = convert_str_to_date(arg)
+            date = convert_str_to_date(arg, today=beijing_now().date())
             if date is None:
                 await self.send_reply(
                     message,
