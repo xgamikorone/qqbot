@@ -141,9 +141,15 @@ class RankCommand(Command):
     def _split_attached_rank_arg(self, args: List[str]) -> tuple[str, List[str]]:
         cmd = args[0]
         rank_args = args[1:]
+        rank_names = self._get_rank_map()
 
-        for name in sorted(self._get_rank_map(), key=len, reverse=True):
-            if cmd != name and cmd.startswith(name):
+        # 精确命令必须优先于前缀拆分，例如“被创次数”不能被拆成
+        # “被创”命令和“次数”参数。
+        if cmd in rank_names:
+            return cmd, rank_args
+
+        for name in sorted(rank_names, key=len, reverse=True):
+            if cmd.startswith(name):
                 attached_arg = cmd[len(name) :]
                 return name, [attached_arg] + rank_args
 
