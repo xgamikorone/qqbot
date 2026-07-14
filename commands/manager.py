@@ -1,4 +1,5 @@
 from html import unescape
+import re
 from typing import List, Tuple
 from botpy.message import Message
 from botpy import logging, Client
@@ -33,6 +34,18 @@ class CommandManager:
         for alias, cmd_class in _command_registry.items():
             self.commands[alias] = cmd_class(self.client)
 
+    def normalize_msgs(self, msgs: List[str]) -> List[str]:
+        """拆开与 @bot 紧连的命令，例如 ``<@!123>/帮助``。"""
+        if not msgs:
+            return msgs
+
+        match = re.fullmatch(r"(<@!?\d+>)(.+)", msgs[0])
+        if not match:
+            return msgs
+
+        mention, cmd = match.groups()
+        return [mention, cmd, *msgs[1:]]
+
     def _split_chained_msgs(self, msgs: List[str]) -> List[List[str]]:
         """按 && 拆分命令链，保留每段命令的 @bot 前缀。"""
         if len(msgs) < 2:
@@ -57,6 +70,8 @@ class CommandManager:
 
     async def execute(self, message: Message, msgs: List[str]) -> bool:
         """执行命令，返回是否找到命令"""
+
+        msgs = self.normalize_msgs(msgs)
 
         if message.author.id in ["18135437345708881591"]:
             await self.client.api.post_message(

@@ -105,7 +105,7 @@ class MyClient(botpy.Client):
 
     async def on_at_message_create(self, message: Message):
         print(message.content)
-        msgs = message.content.split()
+        msgs = self.cmd_manager.normalize_msgs(message.content.split())
 
         if len(msgs) < 2:
             await self.api.post_message(
