@@ -1,5 +1,7 @@
+import asyncio
 import json
 import os
+import threading
 from typing import List
 from textwrap import dedent
 
@@ -20,6 +22,7 @@ class PersistentSessionManager:
         self.file_path = file_path
         self.max_history = max_history
         self.system_prompt = system_prompt or "你是一个QQ频道的聊天机器人。"
+        self._lock = threading.RLock()
         self.user_histories = self.load_sessions()
 
     def load_sessions(self):
@@ -32,31 +35,36 @@ class PersistentSessionManager:
         return {}
 
     def save_sessions(self):
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump(self.user_histories, f, ensure_ascii=False, indent=2)
+        with self._lock:
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump(self.user_histories, f, ensure_ascii=False, indent=2)
 
     def add_user_message(self, user_id: int, content: str):
-        history = self.user_histories.get(str(user_id), [])
-        history.append({"role": "user", "content": content})
-        self.user_histories[str(user_id)] = history[-self.max_history :]
-        self.save_sessions()
+        with self._lock:
+            history = self.user_histories.get(str(user_id), [])
+            history.append({"role": "user", "content": content})
+            self.user_histories[str(user_id)] = history[-self.max_history :]
+            self.save_sessions()
         _log.info(f"[User] {user_id}: {content}")
 
     def add_bot_message(self, user_id: int, content: str):
-        history = self.user_histories.get(str(user_id), [])
-        history.append({"role": "assistant", "content": content})
-        self.user_histories[str(user_id)] = history[-self.max_history :]
-        self.save_sessions()
+        with self._lock:
+            history = self.user_histories.get(str(user_id), [])
+            history.append({"role": "assistant", "content": content})
+            self.user_histories[str(user_id)] = history[-self.max_history :]
+            self.save_sessions()
         _log.info(f"[Assistant] {user_id}: {content}")
 
     def get_history(self, user_id: int):
         """返回带 system prompt 的完整消息列表"""
-        history = self.user_histories.get(str(user_id), [])
+        with self._lock:
+            history = list(self.user_histories.get(str(user_id), []))
         return [{"role": "system", "content": self.system_prompt}] + history
 
     def reset_session(self, user_id: int):
-        self.user_histories.pop(str(user_id), None)
-        self.save_sessions()
+        with self._lock:
+            self.user_histories.pop(str(user_id), None)
+            self.save_sessions()
         _log.info(f"[Reset] {user_id}")
 
 
@@ -81,8 +89,11 @@ system_prompt = """你是QQ频道“四禧丸子”的聊天机器人。四禧�
 # client = OpenAI(
 #     api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"
 # )
-client = OpenAI(api_key=os.environ.get("ZHIPU_API_KEY"),
-                base_url="https://open.bigmodel.cn/api/paas/v4/")
+client = OpenAI(
+    api_key=os.environ.get("ZHIPU_API_KEY"),
+    base_url="https://open.bigmodel.cn/api/paas/v4/",
+    timeout=30,
+)
 
 # response = client.chat.completions.create(
 #     model="deepseek-chat",
@@ -124,8 +135,10 @@ class ChatCommand(Command):
         # 调用 DeepSeek/OpenAI API
         try:
             history = session_manager.get_history(user_id)
-            response = client.chat.completions.create(
-                model="glm-4.5-flash", messages=history
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model="glm-4.5-flash",
+                messages=history,
             )
             reply_content = response.choices[0].message.content
             if reply_content is None:

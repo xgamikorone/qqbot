@@ -14,7 +14,7 @@ logger.setLevel(logging.INFO)
 class Dao:
     def __init__(self, db_name=DB_NAME):
         self.db_name = db_name
-        self.conn = sqlite3.connect(db_name, check_same_thread=False)
+        self.conn = sqlite3.connect(db_name, timeout=30, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._init_db()
 
@@ -33,6 +33,7 @@ class Dao:
     def _init_db(self):
         sql = """
         PRAGMA journal_mode = WAL;
+        PRAGMA busy_timeout = 30000;
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             uid INTEGER NOT NULL UNIQUE,
@@ -603,11 +604,9 @@ class Dao:
         )
 
         row = cursor.fetchone()
-        print(dict(row))
         if not row:
             return {}
 
-        print(1)
         wife_id = row["id"]
         cursor.execute(
             """

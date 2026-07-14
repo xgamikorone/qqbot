@@ -127,10 +127,12 @@ class CommandManager:
             except Exception as e:
                 success = False
                 _log.exception(f"Error executing command {cmd_name}: {e}")
-                await command.send_reply(
-                    message, f"执行命令时发生错误: {e}"
-                )
-            await command.after_execute(message, args)
+                await command.send_reply(message, "执行命令时发生错误，请稍后再试。")
+
+            try:
+                await command.after_execute(message, args)
+            except Exception as e:
+                _log.exception(f"Error recording command {cmd_name}: {e}")
 
             return True, success
         return False, False
