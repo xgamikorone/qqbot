@@ -240,7 +240,7 @@ class UserSuperChatCommand(Command):
         #     return
         member = message.member
         roles = member.roles
-        if not is_admin(roles):
+        if not is_admin(roles) or get_dao().is_bot_owner(message.author.id):
             await self.send_reply(message, "该功能仅管理员可用！")
             return
         if not args:
@@ -349,7 +349,7 @@ class UserGuardsCommand(Command):
         #     return
         member = message.member
         roles = member.roles
-        if not is_admin(roles):
+        if not is_admin(roles) or get_dao().is_bot_owner(message.author.id):
             await self.send_reply(message, "该功能仅管理员可用！")
             return
         if not args:
@@ -467,7 +467,7 @@ class UserDanmusCommand(Command):
         #     return
         member = message.member
         roles = member.roles
-        if not is_admin(roles):
+        if not is_admin(roles) or get_dao().is_bot_owner(message.author.id):
             await self.send_reply(message, "该功能仅管理员可用！")
             return
 

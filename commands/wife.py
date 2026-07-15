@@ -151,6 +151,7 @@ class MyWifeCommand(Command):
 class WifeRefreshTimeCommand(Command):
     name = "wife_refresh_time"
     cn_name = "老婆刷新时间"
+    owner_only = True
 
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
@@ -161,9 +162,7 @@ class WifeRefreshTimeCommand(Command):
             return
 
         roles = getattr(message.member, "roles", None)
-        if not roles or not is_admin(roles):
-            await self.send_reply(message, "该功能仅管理员可用！")
-            return
+        
 
         refresh_time = parse_refresh_time(args[0])
         if refresh_time is None:

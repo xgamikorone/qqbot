@@ -12,7 +12,7 @@ ALLOWED_CHANNELS = [723086974]
 
 def is_admin(roles: list[str], admin_ids=(2, 4, 5)):
     return any(int(role) in admin_ids for role in roles)
-
+    
 
 async def get_name_from_uid(uid: int):
     url = "https://api.bilibili.com/x/web-interface/card"
