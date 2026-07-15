@@ -18,7 +18,7 @@ from .api import (
     get_user_danmus,
     get_online_members,
 )
-from .utils import get_name_from_uid, is_admin
+from .utils import get_name_from_uid, is_admin, is_admin_or_owner
 from utils.time_utils import beijing_now
 
 
@@ -240,7 +240,7 @@ class UserSuperChatCommand(Command):
         #     return
         member = message.member
         roles = member.roles
-        if not is_admin(roles) or get_dao().is_bot_owner(message.author.id):
+        if not is_admin_or_owner(message):
             await self.send_reply(message, "该功能仅管理员可用！")
             return
         if not args:
@@ -349,7 +349,7 @@ class UserGuardsCommand(Command):
         #     return
         member = message.member
         roles = member.roles
-        if not is_admin(roles) or get_dao().is_bot_owner(message.author.id):
+        if not is_admin_or_owner(message):
             await self.send_reply(message, "该功能仅管理员可用！")
             return
         if not args:
@@ -467,7 +467,7 @@ class UserDanmusCommand(Command):
         #     return
         member = message.member
         roles = member.roles
-        if not is_admin(roles) or get_dao().is_bot_owner(message.author.id):
+        if not is_admin_or_owner(message):
             await self.send_reply(message, "该功能仅管理员可用！")
             return
 

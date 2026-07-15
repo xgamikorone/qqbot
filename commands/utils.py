@@ -4,6 +4,8 @@ from typing import Optional
 
 import aiohttp
 from botpy.logging import logging
+from botpy.message import Message
+from dao import get_dao
 
 _log = logging.getLogger()
 
@@ -13,6 +15,11 @@ ALLOWED_CHANNELS = [723086974]
 def is_admin(roles: list[str], admin_ids=(2, 4, 5)):
     return any(int(role) in admin_ids for role in roles)
     
+def is_admin_or_owner(message: Message):
+    admin = is_admin(message.member.roles)
+    owner = get_dao().is_bot_owner(message.author.id)
+    return admin or owner
+
 
 async def get_name_from_uid(uid: int):
     url = "https://api.bilibili.com/x/web-interface/card"
