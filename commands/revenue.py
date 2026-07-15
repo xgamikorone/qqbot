@@ -33,6 +33,7 @@ class RevenueCommand(Command):
         _log.info(f"RevenueCommand args: {args}")
         if not args:
             await self.send_reply(message, "请输入要查询的主播uid或昵称")
+            return
         uid_or_nickname = args[0]
         if uid_or_nickname.isdigit():
             uid = int(uid_or_nickname)
@@ -170,6 +171,7 @@ class StreamerGuardsCommand(Command):
         _log.info(f"StreamerGuardsCommand args: {args}")
         if not args:
             await self.send_reply(message, "请输入要查询的主播uid或昵称")
+            return
         uid_or_nickname = args[0]
         num_page = 0 if len(args) < 2 else int(args[1])
         if num_page < 0:
@@ -245,6 +247,7 @@ class UserSuperChatCommand(Command):
             return
         if not args:
             await self.send_reply(message, "请输入要查询的用户uid或昵称")
+            return
         uid_or_nickname = args[0]
         if uid_or_nickname.isdigit():
             uid = int(uid_or_nickname)
@@ -354,6 +357,7 @@ class UserGuardsCommand(Command):
             return
         if not args:
             await self.send_reply(message, "请输入要查询的用户uid或昵称")
+            return
 
         uid_or_nickname = args[0]
         if uid_or_nickname.isdigit():
@@ -473,6 +477,7 @@ class UserDanmusCommand(Command):
 
         if not args:
             await self.send_reply(message, "请输入要查询的用户uid或昵称")
+            return
 
         uid_or_nickname = args[0]
         if uid_or_nickname.isdigit():
@@ -619,6 +624,7 @@ class RevenueCommandV2(Command):
         _log.info(f"RevenueCommand args: {args}")
         if not args:
             await self.send_reply(message, "请输入要查询的主播uid或昵称")
+            return
         uid_or_nickname = args[0]
         uids = []
         if uid_or_nickname.isdigit():
@@ -721,6 +727,7 @@ class SuperChatCommandV2(Command):
         _log.info(f"SuperChatCommand args: {args}")
         if not args:
             await self.send_reply(message, "请输入要查询的主播uid或昵称")
+            return
         uid_or_nickname = args[0]
         num_page = 0 if len(args) < 2 else int(args[1])
         if num_page < 0:
