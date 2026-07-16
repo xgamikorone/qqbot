@@ -9,6 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from botpy import logging
 from botpy.interaction import Interaction
+from botpy.types.forum import Post
 from botpy.message import DirectMessage, GroupMessage, Message
 from dotenv import load_dotenv
 
@@ -158,6 +159,12 @@ class MyClient(botpy.Client):
 
     async def on_forum_thread_create(self, thread):
         print(thread)
+
+    async def on_forum_post_create(self, post: Post):
+        """
+        此处为处理该事件的代码
+        """
+        print(post)
 
     async def on_interaction_create(self, interaction: Interaction):
         pass
