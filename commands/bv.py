@@ -33,6 +33,7 @@ class SearchBVCommand(Command):
         dt = datetime.fromtimestamp(pubdate, tz=tz_utc8)
         pubdate_str = dt.strftime("%Y-%m-%d %H:%M:%S")
         owner = data["owner"]
+        bv = data["bvid"]
 
         reply = dedent(
             f"""\
@@ -40,6 +41,7 @@ class SearchBVCommand(Command):
                 up主: {owner["name"]}
                 播放: {stat["view"]}, 弹幕: {stat["danmaku"]}, 点赞: {stat["like"]}
                 评论: {stat["reply"]}, 收藏: {stat["favorite"]}
+                bv号: {bv}
                 发布时间: {pubdate_str}
             """
         )
