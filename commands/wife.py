@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import uuid
 from commands.utils import is_admin, convert_str_to_date
 from .base import command, Command
 from dao import get_dao
@@ -63,6 +64,45 @@ def get_attachment_url(message: Message) -> str | None:
 def is_image_url(value: str) -> bool:
     return value.startswith(("http://", "https://"))
 
+
+async def download_wife_image(url: str) -> str:
+    """下载老婆图片，返回用于写入数据库的相对路径。"""
+    max_size = 20 * 1024 * 1024
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(url) as response:
+            response.raise_for_status()
+            content_length = response.headers.get("Content-Length")
+            if content_length and int(content_length) > max_size:
+                raise ValueError("图片不能超过 20 MB")
+
+            data = bytearray()
+            async for chunk in response.content.iter_chunked(64 * 1024):
+                data.extend(chunk)
+                if len(data) > max_size:
+                    raise ValueError("图片不能超过 20 MB")
+
+            content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+            extensions = {
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/gif": ".gif",
+                "image/webp": ".webp",
+                "image/bmp": ".bmp",
+            }
+            extension = extensions.get(content_type)
+            if extension is None:
+                url_extension = os.path.splitext(url.split("?", 1)[0])[1].lower()
+                if url_extension not in extensions.values():
+                    raise ValueError("下载内容不是支持的图片格式")
+                extension = url_extension
+
+    image_dir = os.path.join("imgs", "wives")
+    os.makedirs(image_dir, exist_ok=True)
+    relative_path = os.path.join(image_dir, f"{uuid.uuid4().hex}{extension}")
+    with open(relative_path, "wb") as image_file:
+        image_file.write(data)
+    return relative_path.replace(os.sep, "/")
 
 async def send_wife_card(command: Command, message: Message, wife: dict, title: str):
     status = "启用" if wife.get("enabled", 1) else "禁用"
@@ -249,11 +289,22 @@ class AddWifeCommand(Command):
         if not name or not url:
             await self.send_reply(message, "用法：/增加老婆 <名字> <图片URL>，也可以发送图片附件。")
             return
-        wife_id = get_dao().add_wife(name, url)
-        if wife_id is None:
-            await self.send_reply(message, "增加失败，图片地址可能已经存在。")
+        try:
+            local_path = await download_wife_image(url)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, OSError) as e:
+            _log.warning(f"下载老婆图片失败: {e}")
+            await self.send_reply(message, f"增加失败：图片下载失败（{e}）。")
             return
-        await self.send_reply(message, f"增加成功：ID {wife_id}，名字：{name}。")
+
+        wife_id = get_dao().add_wife(name, local_path)
+        if wife_id is None:
+            try:
+                os.remove(local_path)
+            except OSError:
+                _log.warning(f"清理老婆图片失败: {local_path}")
+            await self.send_reply(message, "增加失败，写入数据库时发生错误。")
+            return
+        await self.send_reply(message, f"增加成功：ID {wife_id}，名字：{name}，图片：{local_path}。")
 
 
 @command("更新老婆", "修改老婆", "wife_update")
