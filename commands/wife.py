@@ -304,7 +304,7 @@ class AddWifeCommand(Command):
                 _log.warning(f"清理老婆图片失败: {local_path}")
             await self.send_reply(message, "增加失败，写入数据库时发生错误。")
             return
-        await self.send_reply(message, f"增加成功：ID {wife_id}，名字：{name}，图片：{local_path}。")
+        await self.send_reply(message, f"增加成功：ID {wife_id}，名字：{name}。")
 
 
 @command("更新老婆", "修改老婆", "wife_update")
