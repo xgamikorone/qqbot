@@ -575,6 +575,75 @@ class Dao:
     
     ### 老婆相关操作 ###
 
+    def get_wife_by_id(self, wife_id: int) -> dict[str, Any]:
+        """按 ID 查询老婆（包括已禁用的记录）。"""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, url, name, enabled, created_at FROM wife_urls WHERE id = ?",
+            (wife_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else {}
+
+    def search_wives_by_name(self, name: str, limit: int = 50) -> list[dict[str, Any]]:
+        """使用 LIKE 模糊查询名字，并限制返回数量。"""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, url, name, enabled
+            FROM wife_urls
+            WHERE name LIKE ?
+            ORDER BY id
+            LIMIT ?
+            """,
+            (f"%{name}%", limit),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def set_wife_enabled(self, wife_id: int, enabled: bool) -> bool:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("UPDATE wife_urls SET enabled = ? WHERE id = ?", (int(enabled), wife_id))
+            self.conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.exception(f"设置老婆启用状态失败, wife_id: {wife_id}, error: {e}")
+            return False
+
+    def add_wife(self, name: str, url: str) -> int | None:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT INTO wife_urls (url, name, enabled, created_at) VALUES (?, ?, 1, ?)",
+                (url, name, beijing_now_str()),
+            )
+            self.conn.commit()
+            return cursor.lastrowid
+        except sqlite3.Error as e:
+            logger.exception(f"增加老婆失败, name: {name}, url: {url}, error: {e}")
+            return None
+
+    def update_wife(self, wife_id: int, name: str | None = None, url: str | None = None) -> bool:
+        """更新老婆的名字和/或图片地址。None 表示保留原值。"""
+        if name is None and url is None:
+            return False
+        fields = []
+        values: list[Any] = []
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if url is not None:
+            fields.append("url = ?")
+            values.append(url)
+        values.append(wife_id)
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(f"UPDATE wife_urls SET {', '.join(fields)} WHERE id = ?", values)
+            self.conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.exception(f"更新老婆失败, wife_id: {wife_id}, error: {e}")
+            return False
     def get_wife(self, user_id: str, channel_id: str, guild_id: str):
         today = self._get_today_str()
         cursor = self.conn.cursor()

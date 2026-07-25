@@ -50,6 +50,29 @@ def get_today_refresh_time(refresh_time: str):
     return now, now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
+def get_attachment_url(message: Message) -> str | None:
+    attachments = getattr(message, "attachments", None) or []
+    if not attachments:
+        return None
+    url = getattr(attachments[0], "url", "")
+    if url and not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+    return url or None
+
+
+def is_image_url(value: str) -> bool:
+    return value.startswith(("http://", "https://"))
+
+
+async def send_wife_card(command: Command, message: Message, wife: dict, title: str):
+    status = "启用" if wife.get("enabled", 1) else "禁用"
+    await command.client.api.post_message(
+        content=f"{title}\nID：{wife['id']}\n名字：{wife.get('name') or '未命名'}\n状态：{status}",
+        channel_id=message.channel_id,
+        file_image=wife["url"],
+        msg_id=message.id,
+    )
+
 @command("来个老婆", "wife")
 class WifeCommand(Command):
     name = "wife"
@@ -146,6 +169,121 @@ class MyWifeCommand(Command):
         )
         return
 
+
+@command("老婆详情", "按ID查老婆", "wife_id")
+class WifeByIdCommand(Command):
+    name = "wife_by_id"
+    cn_name = "老婆详情"
+
+    async def execute(self, message: Message, args: List[str]):
+        if len(args) != 1 or not args[0].isdigit():
+            await self.send_reply(message, "用法：/老婆详情 <id>")
+            return
+        wife = get_dao().get_wife_by_id(int(args[0]))
+        if not wife:
+            await self.send_reply(message, f"没有找到 ID 为 {args[0]} 的老婆。")
+            return
+        await send_wife_card(self, message, wife, "查询结果")
+
+
+@command("查询老婆", "搜索老婆", "wife_search")
+class SearchWifeCommand(Command):
+    name = "search_wife"
+    cn_name = "查询老婆"
+
+    async def execute(self, message: Message, args: List[str]):
+        keyword = " ".join(args).strip()
+        if not keyword:
+            await self.send_reply(message, "用法：/查询老婆 <名字关键字>")
+            return
+        wives = get_dao().search_wives_by_name(keyword)
+        if not wives:
+            await self.send_reply(message, f"没有找到名字包含“{keyword}”的老婆。")
+            return
+        lines = [
+            f"{wife['id']}（{'启用' if wife['enabled'] else '禁用'}）：{wife.get('name') or '未命名'}"
+            for wife in wives
+        ]
+        suffix = "\n最多显示 50 条。" if len(wives) == 50 else ""
+        await self.send_reply(message, "查询结果：\n" + "\n".join(lines) + suffix)
+
+
+@command("设置老婆状态", "wife_enable")
+class SetWifeEnabledCommand(Command):
+    name = "set_wife_enabled"
+    cn_name = "设置老婆状态"
+    owner_only = True
+
+    async def execute(self, message: Message, args: List[str]):
+        if len(args) < 2 or not args[0].isdigit():
+            await self.send_reply(message, "用法：/设置老婆状态 <id> <启用|禁用>")
+            return
+        states = {
+            "启用": True, "开启": True, "1": True, "true": True, "on": True,
+            "禁用": False, "关闭": False, "0": False, "false": False, "off": False,
+        }
+        state_text = args[1].lower()
+        if state_text not in states:
+            await self.send_reply(message, "状态只能是“启用”或“禁用”。")
+            return
+        wife_id = int(args[0])
+        if not get_dao().set_wife_enabled(wife_id, states[state_text]):
+            await self.send_reply(message, f"设置失败：ID {wife_id} 不存在。")
+            return
+        await self.send_reply(message, f"已{'启用' if states[state_text] else '禁用'}老婆 ID {wife_id}。")
+
+
+@command("增加老婆", "添加老婆", "wife_add")
+class AddWifeCommand(Command):
+    name = "add_wife"
+    cn_name = "增加老婆"
+    owner_only = True
+
+    async def execute(self, message: Message, args: List[str]):
+        url = get_attachment_url(message)
+        name_args = args
+        if not url and args and is_image_url(args[-1]):
+            url = args[-1]
+            name_args = args[:-1]
+        name = " ".join(name_args).strip()
+        if not name or not url:
+            await self.send_reply(message, "用法：/增加老婆 <名字> <图片URL>，也可以发送图片附件。")
+            return
+        wife_id = get_dao().add_wife(name, url)
+        if wife_id is None:
+            await self.send_reply(message, "增加失败，图片地址可能已经存在。")
+            return
+        await self.send_reply(message, f"增加成功：ID {wife_id}，名字：{name}。")
+
+
+@command("更新老婆", "修改老婆", "wife_update")
+class UpdateWifeCommand(Command):
+    name = "update_wife"
+    cn_name = "更新老婆"
+    owner_only = True
+
+    async def execute(self, message: Message, args: List[str]):
+        if not args or not args[0].isdigit():
+            await self.send_reply(message, "用法：/更新老婆 <id> <新名字或-> [新图片URL]；也可以发送图片附件。")
+            return
+        wife_id = int(args[0])
+        if not get_dao().get_wife_by_id(wife_id):
+            await self.send_reply(message, f"更新失败：ID {wife_id} 不存在。")
+            return
+        url = get_attachment_url(message)
+        remaining = args[1:]
+        if not url and remaining and is_image_url(remaining[-1]):
+            url = remaining[-1]
+            remaining = remaining[:-1]
+        name_text = " ".join(remaining).strip()
+        name = None if not name_text or name_text == "-" else name_text
+        if name is None and url is None:
+            await self.send_reply(message, "请至少提供一个新名字或一张新图片。")
+            return
+        if not get_dao().update_wife(wife_id, name=name, url=url):
+            await self.send_reply(message, "更新失败，图片地址可能已经存在。")
+            return
+        await send_wife_card(self, message, get_dao().get_wife_by_id(wife_id), "更新成功")
 
 @command("老婆刷新时间", "设置老婆刷新时间", "wife_refresh_time", "set_wife_refresh_time")
 class WifeRefreshTimeCommand(Command):
