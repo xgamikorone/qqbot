@@ -170,7 +170,7 @@ class MyWifeCommand(Command):
         return
 
 
-@command("老婆详情", "按ID查老婆", "wife_id")
+@command("老婆详情", "按ID查老婆", "wife_by_id")
 class WifeByIdCommand(Command):
     name = "wife_by_id"
     cn_name = "老婆详情"
@@ -186,15 +186,15 @@ class WifeByIdCommand(Command):
         await send_wife_card(self, message, wife, "查询结果")
 
 
-@command("查询老婆", "搜索老婆", "wife_search")
+@command("查老婆", "查询老婆", "搜索老婆", "wife_search")
 class SearchWifeCommand(Command):
     name = "search_wife"
-    cn_name = "查询老婆"
+    cn_name = "查老婆"
 
     async def execute(self, message: Message, args: List[str]):
         keyword = " ".join(args).strip()
         if not keyword:
-            await self.send_reply(message, "用法：/查询老婆 <名字关键字>")
+            await self.send_reply(message, "用法：/查老婆 <名字关键字>")
             return
         wives = get_dao().search_wives_by_name(keyword)
         if not wives:
