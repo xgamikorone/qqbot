@@ -116,6 +116,24 @@ def save_wife_image(data: bytes, extension: str) -> str:
         image.thumbnail((max(64, int(width * 0.8)), max(64, int(height * 0.8))), Image.Resampling.LANCZOS)
 
 
+def remove_local_wife_image(path: str | None) -> None:
+    """只删除 imgs/wives 目录内的本地图片。"""
+    if not path or path.startswith(("http://", "https://")):
+        return
+
+    image_dir = os.path.realpath(os.path.join("imgs", "wives"))
+    target = os.path.realpath(path)
+    try:
+        is_in_wife_dir = os.path.commonpath((image_dir, target)) == image_dir
+    except ValueError:
+        return
+
+    if is_in_wife_dir and target != image_dir and os.path.isfile(target):
+        try:
+            os.remove(target)
+        except OSError as e:
+            _log.warning(f"删除旧老婆图片失败: {target}, error: {e}")
+
 async def download_wife_image(url: str) -> str:
     """下载并压缩老婆图片，返回用于写入数据库的相对路径。"""
     timeout = aiohttp.ClientTimeout(total=30)
@@ -362,7 +380,8 @@ class UpdateWifeCommand(Command):
             await self.send_reply(message, "用法：/更新老婆 <id> <新名字或-> [新图片URL]；也可以发送图片附件。")
             return
         wife_id = int(args[0])
-        if not get_dao().get_wife_by_id(wife_id):
+        old_wife = get_dao().get_wife_by_id(wife_id)
+        if not old_wife:
             await self.send_reply(message, f"更新失败：ID {wife_id} 不存在。")
             return
         url = get_attachment_url(message)
@@ -387,12 +406,12 @@ class UpdateWifeCommand(Command):
 
         if not get_dao().update_wife(wife_id, name=name, url=local_path):
             if local_path is not None:
-                try:
-                    os.remove(local_path)
-                except OSError:
-                    _log.warning(f"清理老婆图片失败: {local_path}")
+                remove_local_wife_image(local_path)
             await self.send_reply(message, "更新失败，写入数据库时发生错误。")
             return
+
+        if local_path is not None and old_wife.get("url") != local_path:
+            remove_local_wife_image(old_wife.get("url"))
         await send_wife_card(self, message, get_dao().get_wife_by_id(wife_id), "更新成功")
 
 @command("老婆刷新时间", "设置老婆刷新时间", "wife_refresh_time", "set_wife_refresh_time")
