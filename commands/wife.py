@@ -11,7 +11,7 @@ from botpy import logging
 from typing import List
 from textwrap import dedent
 import aiohttp
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from utils.time_utils import beijing_now
 
 _log = logging.get_logger()
@@ -166,6 +166,103 @@ async def download_wife_image(url: str) -> str:
 
     return await asyncio.to_thread(save_wife_image, bytes(data), extension)
 
+def make_wife_thumbnail(source) -> Image.Image:
+    """从文件路径或字节创建 100x100 的缩略图。"""
+    with Image.open(source) as original:
+        image = ImageOps.exif_transpose(original).convert("RGB")
+        image = ImageOps.fit(image, (100, 100), method=Image.Resampling.LANCZOS)
+        return image.copy()
+
+
+async def load_wife_thumbnail(source: str) -> Image.Image | None:
+    try:
+        if source.startswith(("http://", "https://")):
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(source) as response:
+                    response.raise_for_status()
+                    data = await response.read()
+                    if len(data) > 10 * 1024 * 1024:
+                        return None
+            return await asyncio.to_thread(make_wife_thumbnail, io.BytesIO(data))
+        return await asyncio.to_thread(make_wife_thumbnail, source)
+    except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError, UnidentifiedImageError):
+        return None
+
+
+def fit_table_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> str:
+    if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
+        return text
+    suffix = "…"
+    while text and draw.textbbox((0, 0), text + suffix, font=font)[2] > max_width:
+        text = text[:-1]
+    return text + suffix
+
+
+async def build_wife_list_image(wives: list[dict], page: int, total_pages: int, total: int) -> str:
+    """生成老婆列表图片表格，并返回临时图片路径。"""
+    thumbnails = await asyncio.gather(
+        *(load_wife_thumbnail(wife.get("url") or "") for wife in wives)
+    )
+
+    width = 1000
+    title_height = 90
+    header_height = 64
+    row_height = 120
+    footer_height = 70
+    height = title_height + header_height + row_height * len(wives) + footer_height
+    table = Image.new("RGB", (width, height), "#f7f4ef")
+    draw = ImageDraw.Draw(table)
+    font_path = os.path.join("fonts", "simhei.ttf")
+    title_font = ImageFont.truetype(font_path, 38)
+    header_font = ImageFont.truetype(font_path, 28)
+    body_font = ImageFont.truetype(font_path, 27)
+    footer_font = ImageFont.truetype(font_path, 23)
+
+    draw.rectangle((0, 0, width, title_height), fill="#49392f")
+    draw.text((36, 24), "老婆列表", font=title_font, fill="white")
+    draw.text((width - 210, 32), f"第 {page}/{total_pages} 页", font=footer_font, fill="#eadfd5")
+
+    columns = (0, 150, 700, width)
+    header_top = title_height
+    draw.rectangle((0, header_top, width, header_top + header_height), fill="#d9c2ad")
+    headers = (("ID", 75), ("名字", 425), ("缩略图", 850))
+    for label, center_x in headers:
+        box = draw.textbbox((0, 0), label, font=header_font)
+        draw.text((center_x - (box[2] - box[0]) / 2, header_top + 15), label, font=header_font, fill="#34271f")
+
+    for index, (wife, thumbnail) in enumerate(zip(wives, thumbnails)):
+        top = header_top + header_height + index * row_height
+        bottom = top + row_height
+        draw.rectangle((0, top, width, bottom), fill="#fffdf9" if index % 2 == 0 else "#f0e8df")
+        draw.line((0, bottom, width, bottom), fill="#cbb8a6", width=1)
+        id_text = str(wife["id"])
+        id_box = draw.textbbox((0, 0), id_text, font=body_font)
+        draw.text((75 - (id_box[2] - id_box[0]) / 2, top + 42), id_text, font=body_font, fill="#352b25")
+        name = fit_table_text(draw, wife.get("name") or "未命名", body_font, 500)
+        draw.text((178, top + 42), name, font=body_font, fill="#352b25")
+        if thumbnail is not None:
+            table.paste(thumbnail, (800, top + 10))
+        else:
+            draw.rounded_rectangle((800, top + 10, 900, top + 110), radius=8, fill="#d8d2cc")
+            missing_box = draw.textbbox((0, 0), "无图片", font=footer_font)
+            draw.text((850 - (missing_box[2] - missing_box[0]) / 2, top + 48), "无图片", font=footer_font, fill="#756b64")
+
+    for x in columns[1:-1]:
+        draw.line((x, header_top, x, height - footer_height), fill="#bda995", width=2)
+    footer_top = height - footer_height
+    draw.rectangle((0, footer_top, width, height), fill="#49392f")
+    footer = f"第 {page}/{total_pages} 页 · 共 {total} 个"
+    draw.text((36, footer_top + 20), footer, font=footer_font, fill="white")
+
+    output_path = os.path.join("imgs", f"wife_list_{uuid.uuid4().hex}.jpg")
+    for quality in (88, 78, 68, 58):
+        table.save(output_path, "JPEG", quality=quality, optimize=True)
+        if os.path.getsize(output_path) <= MAX_WIFE_IMAGE_SIZE:
+            return output_path
+    os.remove(output_path)
+    raise ValueError("老婆列表图片无法压缩到 1 MB 以内")
+
 async def send_wife_card(command: Command, message: Message, wife: dict, title: str):
     status = "启用" if wife.get("enabled", 1) else "禁用"
     await command.client.api.post_message(
@@ -271,6 +368,52 @@ class MyWifeCommand(Command):
         )
         return
 
+
+@command("老婆列表", "wife_list")
+class WifeListCommand(Command):
+    name = "wife_list"
+    cn_name = "老婆列表"
+
+    async def execute(self, message: Message, args: List[str]):
+        if len(args) > 1 or (args and (not args[0].isdigit() or int(args[0]) < 1)):
+            await self.send_reply(message, "用法：/老婆列表 [页数]，页数必须是正整数。")
+            return
+
+        page = int(args[0]) if args else 1
+        wives, total = get_dao().get_wives_page(page=page, page_size=10)
+        if total == 0:
+            await self.send_reply(message, "老婆列表为空。")
+            return
+
+        total_pages = (total + 9) // 10
+        if page > total_pages:
+            await self.send_reply(message, f"第 {page} 页不存在，当前共 {total_pages} 页。")
+            return
+
+        lines = [f"{wife['id']}：{wife.get('name') or '未命名'}" for wife in wives]
+        fallback_text = (
+            f"老婆列表（第 {page}/{total_pages} 页，共 {total} 个）：\n" + "\n".join(lines)
+        )
+        image_path = None
+        try:
+            image_path = await build_wife_list_image(wives, page, total_pages, total)
+            await self.client.api.post_message(
+                content=f"老婆列表（第 {page}/{total_pages} 页）",
+                channel_id=message.channel_id,
+                file_image=image_path,
+                msg_id=message.id,
+            )
+            return
+        except Exception as e:
+            _log.exception(f"生成或发送老婆列表图片失败，改用文字回复: {e}")
+        finally:
+            if image_path and os.path.isfile(image_path):
+                try:
+                    os.remove(image_path)
+                except OSError as e:
+                    _log.warning(f"清理老婆列表临时图片失败: {e}")
+
+        await self.send_reply(message, fallback_text)
 
 @command("老婆详情", "按ID查老婆", "wife_by_id")
 class WifeByIdCommand(Command):

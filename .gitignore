@@ -9,3 +9,5 @@ replace_wife_urls.py
 user.db*
 sessions.json
 *.log
+commands/wife.py
+imgs/wife_list_preview.jpg

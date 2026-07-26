@@ -600,6 +600,18 @@ class Dao:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_wives_page(self, page: int = 1, page_size: int = 10) -> tuple[list[dict[str, Any]], int]:
+        """按 ID 升序分页查询全部老婆，并返回总数量。"""
+        offset = (page - 1) * page_size
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS count FROM wife_urls")
+        count_row = cursor.fetchone()
+        total = count_row["count"] if count_row else 0
+        cursor.execute(
+            "SELECT id, name, url FROM wife_urls ORDER BY id LIMIT ? OFFSET ?",
+            (page_size, offset),
+        )
+        return [dict(row) for row in cursor.fetchall()], total
     def set_wife_enabled(self, wife_id: int, enabled: bool) -> bool:
         try:
             cursor = self.conn.cursor()
