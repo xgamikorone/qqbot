@@ -167,10 +167,10 @@ async def download_wife_image(url: str) -> str:
     return await asyncio.to_thread(save_wife_image, bytes(data), extension)
 
 def make_wife_thumbnail(source) -> Image.Image:
-    """从文件路径或字节创建 100x100 的缩略图。"""
+    """从文件路径或字节创建 160x160 的缩略图。"""
     with Image.open(source) as original:
         image = ImageOps.exif_transpose(original).convert("RGB")
-        image = ImageOps.fit(image, (100, 100), method=Image.Resampling.LANCZOS)
+        image = ImageOps.fit(image, (160, 160), method=Image.Resampling.LANCZOS)
         return image.copy()
 
 
@@ -199,16 +199,18 @@ def fit_table_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTyp
     return text + suffix
 
 
-async def build_wife_list_image(wives: list[dict], page: int, total_pages: int, total: int) -> str:
+async def build_wife_list_image(
+    wives: list[dict], page: int, total_pages: int, total: int, title: str = "老婆列表"
+) -> str:
     """生成老婆列表图片表格，并返回临时图片路径。"""
     thumbnails = await asyncio.gather(
         *(load_wife_thumbnail(wife.get("url") or "") for wife in wives)
     )
 
-    width = 1000
+    width = 1100
     title_height = 90
     header_height = 64
-    row_height = 120
+    row_height = 180
     footer_height = 70
     height = title_height + header_height + row_height * len(wives) + footer_height
     table = Image.new("RGB", (width, height), "#f7f4ef")
@@ -220,13 +222,13 @@ async def build_wife_list_image(wives: list[dict], page: int, total_pages: int, 
     footer_font = ImageFont.truetype(font_path, 23)
 
     draw.rectangle((0, 0, width, title_height), fill="#49392f")
-    draw.text((36, 24), "老婆列表", font=title_font, fill="white")
+    draw.text((36, 24), title, font=title_font, fill="white")
     draw.text((width - 210, 32), f"第 {page}/{total_pages} 页", font=footer_font, fill="#eadfd5")
 
-    columns = (0, 150, 700, width)
+    columns = (0, 130, 600, 770, width)
     header_top = title_height
     draw.rectangle((0, header_top, width, header_top + header_height), fill="#d9c2ad")
-    headers = (("ID", 75), ("名字", 425), ("缩略图", 850))
+    headers = (("ID", 65), ("名字", 365), ("状态", 685), ("缩略图", 935))
     for label, center_x in headers:
         box = draw.textbbox((0, 0), label, font=header_font)
         draw.text((center_x - (box[2] - box[0]) / 2, header_top + 15), label, font=header_font, fill="#34271f")
@@ -238,15 +240,19 @@ async def build_wife_list_image(wives: list[dict], page: int, total_pages: int, 
         draw.line((0, bottom, width, bottom), fill="#cbb8a6", width=1)
         id_text = str(wife["id"])
         id_box = draw.textbbox((0, 0), id_text, font=body_font)
-        draw.text((75 - (id_box[2] - id_box[0]) / 2, top + 42), id_text, font=body_font, fill="#352b25")
-        name = fit_table_text(draw, wife.get("name") or "未命名", body_font, 500)
-        draw.text((178, top + 42), name, font=body_font, fill="#352b25")
+        draw.text((65 - (id_box[2] - id_box[0]) / 2, top + 72), id_text, font=body_font, fill="#352b25")
+        name = fit_table_text(draw, wife.get("name") or "未命名", body_font, 410)
+        draw.text((160, top + 72), name, font=body_font, fill="#352b25")
+        status = "启用" if wife.get("enabled", 1) else "禁用"
+        status_box = draw.textbbox((0, 0), status, font=body_font)
+        status_color = "#287a45" if wife.get("enabled", 1) else "#a14343"
+        draw.text((685 - (status_box[2] - status_box[0]) / 2, top + 72), status, font=body_font, fill=status_color)
         if thumbnail is not None:
-            table.paste(thumbnail, (800, top + 10))
+            table.paste(thumbnail, (855, top + 10))
         else:
-            draw.rounded_rectangle((800, top + 10, 900, top + 110), radius=8, fill="#d8d2cc")
+            draw.rounded_rectangle((855, top + 10, 1015, top + 170), radius=8, fill="#d8d2cc")
             missing_box = draw.textbbox((0, 0), "无图片", font=footer_font)
-            draw.text((850 - (missing_box[2] - missing_box[0]) / 2, top + 48), "无图片", font=footer_font, fill="#756b64")
+            draw.text((935 - (missing_box[2] - missing_box[0]) / 2, top + 78), "无图片", font=footer_font, fill="#756b64")
 
     for x in columns[1:-1]:
         draw.line((x, header_top, x, height - footer_height), fill="#bda995", width=2)
@@ -449,8 +455,30 @@ class SearchWifeCommand(Command):
             f"{wife['id']}（{'启用' if wife['enabled'] else '禁用'}）：{wife.get('name') or '未命名'}"
             for wife in wives
         ]
-        suffix = "\n最多显示 50 条。" if len(wives) == 50 else ""
-        await self.send_reply(message, "查询结果：\n" + "\n".join(lines) + suffix)
+        suffix = "\n最多显示 10 条。" if len(wives) == 10 else ""
+        fallback_text = "查询结果：\n" + "\n".join(lines) + suffix
+        image_path = None
+        try:
+            image_path = await build_wife_list_image(
+                wives, 1, 1, len(wives), title="老婆查询结果"
+            )
+            await self.client.api.post_message(
+                content=f"名字包含“{keyword}”的老婆",
+                channel_id=message.channel_id,
+                file_image=image_path,
+                msg_id=message.id,
+            )
+            return
+        except Exception as e:
+            _log.exception(f"生成或发送老婆查询图片失败，改用文字回复: {e}")
+        finally:
+            if image_path and os.path.isfile(image_path):
+                try:
+                    os.remove(image_path)
+                except OSError as e:
+                    _log.warning(f"清理老婆查询临时图片失败: {e}")
+
+        await self.send_reply(message, fallback_text)
 
 
 @command("设置老婆状态", "wife_enable")

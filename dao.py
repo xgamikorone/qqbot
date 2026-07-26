@@ -585,7 +585,7 @@ class Dao:
         row = cursor.fetchone()
         return dict(row) if row else {}
 
-    def search_wives_by_name(self, name: str, limit: int = 50) -> list[dict[str, Any]]:
+    def search_wives_by_name(self, name: str, limit: int = 10) -> list[dict[str, Any]]:
         """使用 LIKE 模糊查询名字，并限制返回数量。"""
         cursor = self.conn.cursor()
         cursor.execute(
@@ -608,7 +608,7 @@ class Dao:
         count_row = cursor.fetchone()
         total = count_row["count"] if count_row else 0
         cursor.execute(
-            "SELECT id, name, url FROM wife_urls ORDER BY id LIMIT ? OFFSET ?",
+            "SELECT id, name, enabled, url FROM wife_urls ORDER BY id LIMIT ? OFFSET ?",
             (page_size, offset),
         )
         return [dict(row) for row in cursor.fetchall()], total
