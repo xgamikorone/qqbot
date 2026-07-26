@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 import re
 import uuid
@@ -10,6 +11,7 @@ from botpy import logging
 from typing import List
 from textwrap import dedent
 import aiohttp
+from PIL import Image, ImageOps, UnidentifiedImageError
 from utils.time_utils import beijing_now
 
 _log = logging.get_logger()
@@ -65,22 +67,70 @@ def is_image_url(value: str) -> bool:
     return value.startswith(("http://", "https://"))
 
 
+MAX_WIFE_IMAGE_SIZE = 1024 * 1024
+MAX_WIFE_DOWNLOAD_SIZE = 20 * 1024 * 1024
+
+
+def save_wife_image(data: bytes, extension: str) -> str:
+    """验证图片并保存；超过 1 MB 时逐步压缩为 JPEG。"""
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            source.verify()
+        with Image.open(io.BytesIO(data)) as source:
+            image = ImageOps.exif_transpose(source)
+            image.load()
+    except (UnidentifiedImageError, OSError) as e:
+        raise ValueError("下载内容不是有效图片") from e
+
+    image_dir = os.path.join("imgs", "wives")
+    os.makedirs(image_dir, exist_ok=True)
+
+    if len(data) <= MAX_WIFE_IMAGE_SIZE:
+        relative_path = os.path.join(image_dir, f"{uuid.uuid4().hex}{extension}")
+        with open(relative_path, "wb") as image_file:
+            image_file.write(data)
+        return relative_path.replace(os.sep, "/")
+
+    if image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info):
+        rgba_image = image.convert("RGBA")
+        rgb_image = Image.new("RGB", rgba_image.size, "white")
+        rgb_image.paste(rgba_image, mask=rgba_image.getchannel("A"))
+        image = rgb_image
+    else:
+        image = image.convert("RGB")
+
+    while True:
+        for quality in (85, 75, 65, 55, 45, 35, 25, 15):
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=quality, optimize=True)
+            compressed = output.getvalue()
+            if len(compressed) <= MAX_WIFE_IMAGE_SIZE:
+                relative_path = os.path.join(image_dir, f"{uuid.uuid4().hex}.jpg")
+                with open(relative_path, "wb") as image_file:
+                    image_file.write(compressed)
+                return relative_path.replace(os.sep, "/")
+
+        width, height = image.size
+        if width <= 64 and height <= 64:
+            raise ValueError("图片无法压缩到 1 MB 以内")
+        image.thumbnail((max(64, int(width * 0.8)), max(64, int(height * 0.8))), Image.Resampling.LANCZOS)
+
+
 async def download_wife_image(url: str) -> str:
-    """下载老婆图片，返回用于写入数据库的相对路径。"""
-    max_size = 20 * 1024 * 1024
+    """下载并压缩老婆图片，返回用于写入数据库的相对路径。"""
     timeout = aiohttp.ClientTimeout(total=30)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url) as response:
             response.raise_for_status()
             content_length = response.headers.get("Content-Length")
-            if content_length and int(content_length) > max_size:
-                raise ValueError("图片不能超过 20 MB")
+            if content_length and int(content_length) > MAX_WIFE_DOWNLOAD_SIZE:
+                raise ValueError("原始图片不能超过 20 MB")
 
             data = bytearray()
             async for chunk in response.content.iter_chunked(64 * 1024):
                 data.extend(chunk)
-                if len(data) > max_size:
-                    raise ValueError("图片不能超过 20 MB")
+                if len(data) > MAX_WIFE_DOWNLOAD_SIZE:
+                    raise ValueError("原始图片不能超过 20 MB")
 
             content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
             extensions = {
@@ -92,17 +142,11 @@ async def download_wife_image(url: str) -> str:
             }
             extension = extensions.get(content_type)
             if extension is None:
-                url_extension = os.path.splitext(url.split("?", 1)[0])[1].lower()
-                if url_extension not in extensions.values():
+                extension = os.path.splitext(url.split("?", 1)[0])[1].lower()
+                if extension not in extensions.values():
                     raise ValueError("下载内容不是支持的图片格式")
-                extension = url_extension
 
-    image_dir = os.path.join("imgs", "wives")
-    os.makedirs(image_dir, exist_ok=True)
-    relative_path = os.path.join(image_dir, f"{uuid.uuid4().hex}{extension}")
-    with open(relative_path, "wb") as image_file:
-        image_file.write(data)
-    return relative_path.replace(os.sep, "/")
+    return await asyncio.to_thread(save_wife_image, bytes(data), extension)
 
 async def send_wife_card(command: Command, message: Message, wife: dict, title: str):
     status = "启用" if wife.get("enabled", 1) else "禁用"
@@ -331,8 +375,23 @@ class UpdateWifeCommand(Command):
         if name is None and url is None:
             await self.send_reply(message, "请至少提供一个新名字或一张新图片。")
             return
-        if not get_dao().update_wife(wife_id, name=name, url=url):
-            await self.send_reply(message, "更新失败，图片地址可能已经存在。")
+
+        local_path = None
+        if url is not None:
+            try:
+                local_path = await download_wife_image(url)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, OSError) as e:
+                _log.warning(f"下载或压缩老婆图片失败: {e}")
+                await self.send_reply(message, f"更新失败：图片处理失败（{e}）。")
+                return
+
+        if not get_dao().update_wife(wife_id, name=name, url=local_path):
+            if local_path is not None:
+                try:
+                    os.remove(local_path)
+                except OSError:
+                    _log.warning(f"清理老婆图片失败: {local_path}")
+            await self.send_reply(message, "更新失败，写入数据库时发生错误。")
             return
         await send_wife_card(self, message, get_dao().get_wife_by_id(wife_id), "更新成功")
 
