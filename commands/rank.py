@@ -623,8 +623,8 @@ class RankCommand(Command):
                 for rank, user_row in enumerate(row["users"], start=1):
                     user_id = user_row["user_id"]
                     username = usernames.get(user_id)
-                    if not username or username == "未知用户":
-                        username = f"<@!{user_id}>"
+                    # if not username or username == "未知用户":
+                    #     username = f"<@!{user_id}>"
                     lines.append(f"{rank}. {username}：{user_row['count']}次")
             return "\n".join(lines)
 
