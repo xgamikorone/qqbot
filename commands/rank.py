@@ -61,7 +61,7 @@ rank_help_str = dedent(
     —————————————
     🔹 排行榜 被创丨历史被创丨累计被创 | 被创次数 | 平均被创 [最少次数(3)]
     🔹 排行榜 命令丨他的命令 [@用户(不加则为自己)]丨命令用户 [命令名]
-    🔹 排行榜 老婆 [页数(1)] | 我的老婆 [页数(1)]
+    🔹 排行榜 老婆 [页数(1)] | 我的老婆 [页数(1)] | 老婆用户 [老婆名]
     """
 )
 
@@ -582,6 +582,58 @@ class RankCommand(Command):
             )
         )
     
+    # =====================================================
+    # 老婆用户
+    # =====================================================
+    @rank_handler("老婆用户")
+    async def _rank_wife_users(self, message: Message, args: List[str]) -> RankResult:
+        if not args:
+            return RankResult(error="请输入老婆名")
+
+        keyword = " ".join(args).strip()
+        if not keyword:
+            return RankResult(error="请输入老婆名")
+
+        dao = get_dao()
+        guild_id = message.guild_id
+        wives = dao.search_wives_by_name(keyword)
+
+        # 搜索结果可能包含多个同名但不同 ID 的老婆；这里只保留唯一名字，
+        # 后续统计会把这些 ID 的历史记录合并起来。
+        wife_names = list(
+            dict.fromkeys(wife["name"] for wife in wives if wife.get("name"))
+        )
+        if not wife_names:
+            return RankResult(error=f"没有找到名字包含“{keyword}”的老婆")
+
+        groups: List[Dict[str, Any]] = []
+        user_ids: List[str] = []
+        for wife_name in wife_names:
+            users = dao.get_wife_user_counts_by_name(wife_name, guild_id)
+            groups.append({"name": wife_name, "users": users})
+            user_ids.extend(row["user_id"] for row in users)
+
+        usernames = await self._fetch_usernames(guild_id, list(dict.fromkeys(user_ids)))
+
+        def render_row(_rank: int, row: dict) -> str:
+            lines = [f"【{row['name']}】"]
+            if not row["users"]:
+                lines.append("暂无抽取记录")
+            else:
+                for rank, user_row in enumerate(row["users"], start=1):
+                    username = usernames.get(user_row["user_id"], "未知用户")
+                    lines.append(f"{rank}. {username}：{user_row['count']}次")
+            return "\n".join(lines)
+
+        return RankResult(
+            RankConfig(
+                title=f"名字包含“{keyword}”的老婆用户排行榜：",
+                top_data=groups,
+                render_row=render_row,
+                render_footer=None,
+            )
+        )
+
     # =====================================================
     # 老婆
     # =====================================================
