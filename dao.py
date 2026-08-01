@@ -780,21 +780,21 @@ class Dao:
         return [dict(row) for row in rows]
 
     def get_wife_user_counts_by_name(
-        self, wife_name: str, guild_id: str, limit: int = 10
+        self, wife_name: str, limit: int = 10
     ) -> list[dict[str, Any]]:
-        """统计当前公会中抽到指定名字老婆次数最多的用户，同名老婆合并。"""
+        """统计抽到指定名字老婆次数最多的用户，同名老婆合并。"""
         cursor = self.conn.cursor()
         cursor.execute(
             """
             SELECT uw.user_id, COUNT(*) AS count
             FROM user_wife_daily uw
             JOIN wife_urls w ON uw.wife_id = w.id
-            WHERE w.name = ? AND uw.guild_id = ?
+            WHERE w.name = ?
             GROUP BY uw.user_id
             ORDER BY count DESC, uw.user_id
             LIMIT ?
             """,
-            (wife_name, guild_id, limit),
+            (wife_name, limit),
         )
 
         return [dict(row) for row in cursor.fetchall()]

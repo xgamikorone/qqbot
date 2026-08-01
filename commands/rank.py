@@ -609,7 +609,7 @@ class RankCommand(Command):
         groups: List[Dict[str, Any]] = []
         user_ids: List[str] = []
         for wife_name in wife_names:
-            users = dao.get_wife_user_counts_by_name(wife_name, guild_id)
+            users = dao.get_wife_user_counts_by_name(wife_name)
             groups.append({"name": wife_name, "users": users})
             user_ids.extend(row["user_id"] for row in users)
 
@@ -621,7 +621,10 @@ class RankCommand(Command):
                 lines.append("暂无抽取记录")
             else:
                 for rank, user_row in enumerate(row["users"], start=1):
-                    username = usernames.get(user_row["user_id"], "未知用户")
+                    user_id = user_row["user_id"]
+                    username = usernames.get(user_id)
+                    if not username or username == "未知用户":
+                        username = f"<@!{user_id}>"
                     lines.append(f"{rank}. {username}：{user_row['count']}次")
             return "\n".join(lines)
 
