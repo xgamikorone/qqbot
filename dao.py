@@ -3,6 +3,7 @@ import os
 import sqlite3
 import logging
 from typing import Any, Dict, List
+from database.connection import create_connection
 from database.schema import initialize_schema
 from utils.time_utils import beijing_now_str
 
@@ -15,8 +16,7 @@ logger.setLevel(logging.INFO)
 class Dao:
     def __init__(self, db_name=DB_NAME):
         self.db_name = db_name
-        self.conn = sqlite3.connect(db_name, timeout=30, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+        self.conn = create_connection(db_name)
         self._init_db()
 
     def add_user(self, uid):
