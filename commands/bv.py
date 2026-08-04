@@ -6,7 +6,21 @@ from typing import List
 from botpy import logging
 from .api import get_bv_info
 from textwrap import dedent
+from utils.async_retry import retry_empty
 _log = logging.get_logger()
+
+
+async def get_bv_info_with_retry(
+    bv: str, max_attempts: int = 3, retry_delay: float = 1.0
+):
+    return await retry_empty(
+        lambda: get_bv_info(bv),
+        max_attempts=max_attempts,
+        retry_delay=retry_delay,
+        on_retry=lambda attempt, total: _log.warning(
+            f"查询 BV 失败，第 {attempt}/{total} 次尝试，即将重试"
+        ),
+    )
 
 
 @command("查bv", "查BV", "查视频")
@@ -19,9 +33,11 @@ class SearchBVCommand(Command):
             await self.send_reply(message, "请输入要查询的BV号!")
             return
         bv = "".join(args)
-        r = await get_bv_info(bv)
-        if r is None or r["code"] != 0:
-            await self.send_reply(message, f"查询遇到错误, {r['message'] if r is not None else '未知错误'}")
+        r = await get_bv_info_with_retry(bv)
+        if not r or r.get("code") != 0:
+            await self.send_reply(
+                message, f"查询遇到错误, {r.get('message', '未知错误') if r else '未知错误'}"
+            )
             return
         
         data = r["data"]
