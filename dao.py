@@ -491,19 +491,7 @@ class Dao:
     def get_today_chuang_distance(
         self, user_id: str, guild_id: str, date: str
     ) -> int | None:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT distance
-            FROM user_chuang_daily
-            WHERE user_id = ?
-            AND guild_id = ?
-            AND date = ?
-            """,
-            (user_id, guild_id, date),
-        )
-        row = cursor.fetchone()
-        return row["distance"] if row else None
+        return self.chuang.get_distance(user_id, guild_id, date)
 
     def insert_chuang(
         self,
@@ -513,16 +501,7 @@ class Dao:
         guild_id: str,
         date: str,
     ):
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO user_chuang_daily
-            (user_id, distance, channel_id, guild_id, date, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (user_id, distance, channel_id, guild_id, date, beijing_now_str()),
-        )
-        self.conn.commit()
+        self.chuang.record(user_id, distance, channel_id, guild_id, date)
 
     def get_today_chuang_rank_cur_guild(
         self,
@@ -530,209 +509,50 @@ class Dao:
         guild_id: str,
         date: str,
     ) -> int:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT COUNT(*) + 1 AS rank
-            FROM user_chuang_daily
-            WHERE date = ?
-            AND guild_id = ?
-            AND distance > ?
-            """,
-            (date, guild_id, distance),
-        )
-        return cursor.fetchone()["rank"]
+        return self.chuang.get_daily_rank(distance, guild_id, date)
 
     def get_today_chuang_rank_all_guild(
         self,
         distance: int,
         date: str,
     ) -> int:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT COUNT(*) + 1 AS rank
-            FROM user_chuang_daily
-            WHERE date = ?
-            AND distance > ?
-            """,
-            (date, distance),
-        )
-        return cursor.fetchone()["rank"]
+        return self.chuang.get_global_daily_rank(distance, date)
 
     def get_chuang_history_rank_cur_guild(self, distance: int, guild_id: str) -> int:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT COUNT(*) + 1 AS rank
-            FROM user_chuang_daily
-            WHERE guild_id = ?
-            AND distance > ?
-            """,
-            (guild_id, distance),
-        )
-        return cursor.fetchone()["rank"]
+        return self.chuang.get_history_rank(distance, guild_id)
 
     def get_chuang_history_rank_all_guild(self, distance: int) -> int:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT COUNT(*) + 1 AS rank
-            FROM user_chuang_daily
-            WHERE distance > ?
-            """,
-            (distance,),
-        )
-        return cursor.fetchone()["rank"]
+        return self.chuang.get_global_history_rank(distance)
 
     def get_chuang_history_max(self, user_id: str) -> int:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT MAX(distance) AS max_distance
-            FROM user_chuang_daily
-            WHERE user_id = ?
-            """,
-            (user_id,),
-        )
-        row = cursor.fetchone()
-        return row["max_distance"] or 0
+        return self.chuang.get_history_max(user_id)
 
     def get_chuang_top_k_cur_guild(
         self, k: int, date: str, guild_id: str
     ) -> list[dict[str, Any]]:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT *
-            FROM user_chuang_daily
-            WHERE date = ?
-            AND guild_id = ?
-            ORDER BY distance DESC
-            LIMIT ?
-            """,
-            (date, guild_id, k),
-        )
-        return [dict(row) for row in cursor.fetchall()]
+        return self.chuang.get_daily_top(k, date, guild_id)
 
     def get_chuang_top_k_cur_guild_history(
         self, k: int, guild_id: str
     ) -> list[dict[str, Any]]:
         """返回历史记录中被创距离最远的k条, 每个user_id仅限一条"""
-        try:
-            cursor = self.conn.cursor()
-            sql = """
-            SELECT * FROM (
-                SELECT *, 
-                       ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY distance DESC) as rn
-                FROM user_chuang_daily
-                WHERE guild_id = ?
-            ) t
-            WHERE t.rn = 1
-            ORDER BY t.distance DESC
-            LIMIT ?
-            """
-            cursor.execute(sql, (guild_id, k))
-            return [dict(row) for row in cursor.fetchall()]
-        except sqlite3.Error as e:
-            logger.exception(f"获取被创记录失败, error: {e}")
-            return []
+        return self.chuang.get_history_top(k, guild_id)
 
     def get_user_chuang_history_best(
         self, user_id: str, guild_id: str
     ) -> dict[str, Any]:
         """获取指定用户在指定公会中的历史最远被创记录和历史排名，返回全部字段"""
-        try:
-            cursor = self.conn.cursor()
-            # 获取用户在指定公会中的历史最远被创记录
-            sql = """
-            SELECT *
-            FROM user_chuang_daily
-            WHERE user_id = ?
-            AND guild_id = ?
-            ORDER BY distance DESC
-            LIMIT 1
-            """
-            cursor.execute(sql, (user_id, guild_id))
-            row = cursor.fetchone()
-            if not row:
-                return {}
-
-            # 转换为字典
-            result = dict(row)
-
-            # 计算在指定公会中的历史排名
-            distance = result["distance"]
-            rank = self.get_chuang_history_rank_cur_guild(distance, guild_id)
-            result["history_rank"] = rank
-
-            return result
-        except sqlite3.Error as e:
-            logger.exception(f"获取用户历史最远被创记录失败, error: {e}")
-            return {}
+        return self.chuang.get_user_history_best(user_id, guild_id)
 
     def get_chuang_total_top_k_cur_guild(
         self, k: int, guild_id: str
     ) -> list[dict[str, Any]]:
         """获取指定公会中累计被创距离排名前k的用户"""
-        try:
-            cursor = self.conn.cursor()
-            sql = """
-            SELECT user_id, SUM(distance) AS total_distance
-            FROM user_chuang_daily
-            WHERE guild_id = ?
-            GROUP BY user_id
-            ORDER BY total_distance DESC
-            LIMIT ?
-            """
-            cursor.execute(sql, (guild_id, k))
-            return [dict(row) for row in cursor.fetchall()]
-        except sqlite3.Error as e:
-            logger.exception(f"获取累计被创排名失败, error: {e}")
-            return []
+        return self.chuang.get_total_top(k, guild_id)
 
     def get_user_chuang_total(self, user_id: str, guild_id: str) -> dict[str, Any]:
         """获取指定用户在指定公会中的累计被创距离和排名"""
-        try:
-            cursor = self.conn.cursor()
-            # 计算指定用户在指定公会中的累计被创距离
-            sql = """
-            SELECT SUM(distance) AS total_distance
-            FROM user_chuang_daily
-            WHERE user_id = ?
-            AND guild_id = ?
-            """
-            cursor.execute(sql, (user_id, guild_id))
-            row = cursor.fetchone()
-            if not row or not row["total_distance"]:
-                return {"total_distance": 0, "rank": 0}
-
-            total_distance = row["total_distance"]
-
-            # 计算该用户在指定公会中的累计被创距离排名
-            rank_sql = """
-            SELECT COUNT(*) + 1 AS rank
-            FROM (
-                SELECT SUM(distance) AS total_distance
-                FROM user_chuang_daily
-                WHERE guild_id = ?
-                GROUP BY user_id
-                HAVING SUM(distance) > ?
-            ) t
-            """
-            cursor.execute(rank_sql, (guild_id, total_distance))
-            rank_row = cursor.fetchone()
-            rank = rank_row["rank"] if rank_row else 0
-
-            return {
-                "user_id": user_id,
-                "guild_id": guild_id,
-                "total_distance": total_distance,
-                "rank": rank,
-            }
-        except sqlite3.Error as e:
-            logger.exception(f"获取用户累计被创距离失败, error: {e}")
-            return {"total_distance": 0, "rank": 0}
+        return self.chuang.get_user_total(user_id, guild_id)
 
     def get_chuang_average_top_k_cur_guild(
         self,
@@ -741,125 +561,29 @@ class Dao:
         min_limit: int = 5,
     ):
         """获取指定公会中平均被创距离排名前k的用户"""
-        try:
-            cursor = self.conn.cursor()
-            sql = """
-            SELECT user_id, AVG(distance) AS average_distance
-            FROM user_chuang_daily
-            WHERE guild_id = ?
-            GROUP BY user_id
-            HAVING COUNT(*) >= ?
-            ORDER BY average_distance DESC
-            LIMIT ?
-            """
-            cursor.execute(sql, (guild_id, min_limit, k))
-            return [dict(row) for row in cursor.fetchall()]
-        except sqlite3.Error as e:
-            logger.exception(f"获取平均被创排名失败, error: {e}")
-            return []
+        return self.chuang.get_average_top(k, guild_id, min_limit)
 
     def get_user_chuang_time(self, user_id: str, guild_id: str) -> int:
         """获取指定用户在指定公会中的被创次数"""
-        try:
-            cursor = self.conn.cursor()
-            sql = """
-            SELECT COUNT(*) AS chuang_time
-            FROM user_chuang_daily
-            WHERE user_id = ?
-            AND guild_id = ?
-            """
-            cursor.execute(sql, (user_id, guild_id))
-            row = cursor.fetchone()
-            if not row or not row["chuang_time"]:
-                return 0
-            return row["chuang_time"]
-        except sqlite3.Error as e:
-            logger.exception(f"获取用户被创次数失败, error: {e}")
-            return 0
+        return self.chuang.get_user_count(user_id, guild_id)
 
     def get_user_chuang_average(self, user_id: str, guild_id: str) -> float:
         """获取指定用户在指定公会中的平均被创距离"""
-        try:
-            cursor = self.conn.cursor()
-            sql = """
-            SELECT AVG(distance) AS average_distance
-            FROM user_chuang_daily
-            WHERE user_id = ?
-            AND guild_id = ?
-            """
-            cursor.execute(sql, (user_id, guild_id))
-            row = cursor.fetchone()
-            if not row or not row["average_distance"]:
-                return 0.0
-            return row["average_distance"]
-        except sqlite3.Error as e:
-            logger.exception(f"获取用户平均被创距离失败, error: {e}")
-            return 0.0
+        return self.chuang.get_user_average(user_id, guild_id)
 
     def get_avg_distance_rank_cur_guild(
         self, distance: float, guild_id: str, min_limit: int
     ) -> int:
         """获取指定公会中平均被创距离大于指定值的用户的排名"""
-        try:
-            sql = """
-            SELECT COUNT(*) + 1 AS rank
-            FROM (
-                SELECT AVG(distance) AS average_distance
-                FROM user_chuang_daily
-                WHERE guild_id = ?
-                GROUP BY user_id
-                HAVING COUNT(*) >= ?
-            ) t
-            WHERE average_distance > ?
-            """
-            cursor = self.conn.cursor()
-            cursor.execute(sql, (guild_id, min_limit, distance))
-            row = cursor.fetchone()
-            if not row or not row["rank"]:
-                return 0
-            return row["rank"]
-        except sqlite3.Error as e:
-            logger.exception(f"获取平均被创排名失败, error: {e}")
-            return 0
+        return self.chuang.get_average_rank(distance, guild_id, min_limit)
 
     def get_chuang_times_rank_cur_guild(self, guild_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """获取指定公会中被创次数排名前k的用户"""
-        try:
-            cursor = self.conn.cursor()
-            sql = """
-            SELECT user_id, COUNT(*) AS chuang_time
-            FROM user_chuang_daily
-            WHERE guild_id = ?
-            GROUP BY user_id
-            ORDER BY chuang_time DESC
-            LIMIT ?
-            """
-            cursor.execute(sql, (guild_id, limit))
-            return [dict(row) for row in cursor.fetchall()]
-        except sqlite3.Error as e:
-            logger.exception(f"获取被创次数排名失败, error: {e}")
-            return []
+        return self.chuang.get_count_top(guild_id, limit)
 
     def get_user_chuang_times_rank_cur_guild(self, times: int, guild_id: str) -> int:
         """获取指定公会中被创次数大于等于指定值的用户的排名"""
-        try:
-            sql = """
-            SELECT COUNT(*) + 1 AS rank
-            FROM (
-                SELECT COUNT(*) AS chuang_time
-                FROM user_chuang_daily
-                WHERE guild_id = ?
-                GROUP BY user_id
-            ) t
-            WHERE chuang_time > ?
-            """
-            cursor = self.conn.cursor()
-            cursor.execute(sql, (guild_id, times))
-            row = cursor.fetchone()
-            return row["rank"] if row else 0
-        except sqlite3.Error as e:
-            logger.exception(f"获取被创次数排名失败, error: {e}")
-            return 0
+        return self.chuang.get_count_rank(times, guild_id)
 
     def get_user_by_nickname_like_in_records(self, nickname: str, guild_id: str) -> list[dict]:
         """从command_records表中查询包含昵称关键词的用户，返回user_id和user_name列表
