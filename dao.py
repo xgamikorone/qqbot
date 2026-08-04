@@ -4,6 +4,7 @@ import sqlite3
 import logging
 from typing import Any, Dict, List
 from database.connection import create_connection
+from database.repositories.chuang_repository import ChuangRepository
 from database.repositories.wife_repository import WifeRepository
 from database.schema import initialize_schema
 from utils.time_utils import beijing_now_str
@@ -20,6 +21,7 @@ class Dao:
         self.conn = create_connection(db_name)
         self._init_db()
         self.wives = WifeRepository(self.conn)
+        self.chuang = ChuangRepository(self.conn)
 
     def add_user(self, uid):
         cursor = self.conn.cursor()

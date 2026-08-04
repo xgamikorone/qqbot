@@ -3,7 +3,7 @@ import unittest
 from dao import Dao
 
 
-class ChuangDaoBehaviorTest(unittest.TestCase):
+class ChuangRepositoryTest(unittest.TestCase):
     def setUp(self):
         self.dao = Dao(":memory:")
         self._record("user-1", 100, "guild-a", "2026-08-01")
@@ -15,13 +15,13 @@ class ChuangDaoBehaviorTest(unittest.TestCase):
         self.dao.close()
 
     def _record(self, user_id: str, distance: int, guild_id: str, date: str):
-        self.dao.insert_chuang(user_id, distance, "channel", guild_id, date)
+        self.dao.chuang.record(user_id, distance, "channel", guild_id, date)
 
     def test_daily_distance_and_rank_are_scoped_to_guild(self):
-        distance = self.dao.get_today_chuang_distance(
+        distance = self.dao.chuang.get_distance(
             "user-1", "guild-a", "2026-08-01"
         )
-        rank = self.dao.get_today_chuang_rank_cur_guild(
+        rank = self.dao.chuang.get_daily_rank(
             distance, "guild-a", "2026-08-01"
         )
 
@@ -31,15 +31,15 @@ class ChuangDaoBehaviorTest(unittest.TestCase):
             ["user-2", "user-1"],
             [
                 row["user_id"]
-                for row in self.dao.get_chuang_top_k_cur_guild(
+                for row in self.dao.chuang.get_daily_top(
                     10, "2026-08-01", "guild-a"
                 )
             ],
         )
 
     def test_history_ranking_keeps_each_users_best_record(self):
-        rows = self.dao.get_chuang_top_k_cur_guild_history(10, "guild-a")
-        user_best = self.dao.get_user_chuang_history_best("user-2", "guild-a")
+        rows = self.dao.chuang.get_history_top(10, "guild-a")
+        user_best = self.dao.chuang.get_user_history_best("user-2", "guild-a")
 
         self.assertEqual(
             [("user-1", 300), ("user-2", 200)],
@@ -49,8 +49,8 @@ class ChuangDaoBehaviorTest(unittest.TestCase):
         self.assertEqual(2, user_best["history_rank"])
 
     def test_total_distance_statistics_include_rank(self):
-        rows = self.dao.get_chuang_total_top_k_cur_guild(10, "guild-a")
-        user_total = self.dao.get_user_chuang_total("user-2", "guild-a")
+        rows = self.dao.chuang.get_total_top(10, "guild-a")
+        user_total = self.dao.chuang.get_user_total("user-2", "guild-a")
 
         self.assertEqual(
             [("user-1", 400), ("user-2", 200)],
@@ -60,19 +60,21 @@ class ChuangDaoBehaviorTest(unittest.TestCase):
         self.assertEqual(2, user_total["rank"])
 
     def test_average_and_count_statistics_honor_minimum_count(self):
-        average_rows = self.dao.get_chuang_average_top_k_cur_guild(
-            10, "guild-a", min_limit=2
+        average_rows = self.dao.chuang.get_average_top(
+            10, "guild-a", min_count=2
         )
-        count_rows = self.dao.get_chuang_times_rank_cur_guild("guild-a", 10)
+        count_rows = self.dao.chuang.get_count_top("guild-a", 10)
 
         self.assertEqual(["user-1"], [row["user_id"] for row in average_rows])
-        self.assertEqual(200.0, self.dao.get_user_chuang_average("user-1", "guild-a"))
-        self.assertEqual(1, self.dao.get_avg_distance_rank_cur_guild(200, "guild-a", 2))
+        self.assertEqual(
+            200.0, self.dao.chuang.get_user_average("user-1", "guild-a")
+        )
+        self.assertEqual(1, self.dao.chuang.get_average_rank(200, "guild-a", 2))
         self.assertEqual(
             [("user-1", 2), ("user-2", 1)],
             [(row["user_id"], row["chuang_time"]) for row in count_rows],
         )
-        self.assertEqual(2, self.dao.get_user_chuang_times_rank_cur_guild(1, "guild-a"))
+        self.assertEqual(2, self.dao.chuang.get_count_rank(1, "guild-a"))
 
 
 if __name__ == "__main__":
