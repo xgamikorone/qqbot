@@ -410,7 +410,7 @@ class Dao:
         guild_id: str,
     ):
         sql = """
-        SELECT COUNT(*)
+        SELECT COUNT(*) AS count
         FROM command_records
         WHERE guild_id = ?
         AND command_name = ?
