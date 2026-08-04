@@ -4,6 +4,7 @@ import sqlite3
 import logging
 from typing import Any, Dict, List
 from database.connection import create_connection
+from database.repositories.wife_repository import WifeRepository
 from database.schema import initialize_schema
 from utils.time_utils import beijing_now_str
 
@@ -18,6 +19,7 @@ class Dao:
         self.db_name = db_name
         self.conn = create_connection(db_name)
         self._init_db()
+        self.wives = WifeRepository(self.conn)
 
     def add_user(self, uid):
         cursor = self.conn.cursor()
@@ -447,9 +449,6 @@ class Dao:
             logger.exception(f"获取命令调用次数失败, error: {e}")
             return {}
 
-    def _get_today_str(self):
-        return beijing_now_str("%Y-%m-%d")
-
     def get_setting(self, key: str, default: str = "") -> str:
         try:
             cursor = self.conn.cursor()
@@ -489,228 +488,48 @@ class Dao:
 
     def get_wife_by_id(self, wife_id: int) -> dict[str, Any]:
         """按 ID 查询老婆（包括已禁用的记录）。"""
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT id, url, name, enabled, created_at FROM wife_urls WHERE id = ?",
-            (wife_id,),
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else {}
+        return self.wives.get_by_id(wife_id)
 
     def search_wives_by_name(self, name: str, limit: int = 10) -> list[dict[str, Any]]:
         """使用 LIKE 模糊查询名字，并限制返回数量。"""
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, url, name, enabled
-            FROM wife_urls
-            WHERE name LIKE ?
-            ORDER BY id
-            LIMIT ?
-            """,
-            (f"%{name}%", limit),
-        )
-        return [dict(row) for row in cursor.fetchall()]
+        return self.wives.search_by_name(name, limit)
 
     def get_wives_page(self, page: int = 1, page_size: int = 10) -> tuple[list[dict[str, Any]], int]:
         """按 ID 升序分页查询全部老婆，并返回总数量。"""
-        offset = (page - 1) * page_size
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT COUNT(*) AS count FROM wife_urls")
-        count_row = cursor.fetchone()
-        total = count_row["count"] if count_row else 0
-        cursor.execute(
-            "SELECT id, name, enabled, url FROM wife_urls ORDER BY id LIMIT ? OFFSET ?",
-            (page_size, offset),
-        )
-        return [dict(row) for row in cursor.fetchall()], total
+        return self.wives.get_page(page, page_size)
+
     def set_wife_enabled(self, wife_id: int, enabled: bool) -> bool:
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute("UPDATE wife_urls SET enabled = ? WHERE id = ?", (int(enabled), wife_id))
-            self.conn.commit()
-            return cursor.rowcount > 0
-        except sqlite3.Error as e:
-            logger.exception(f"设置老婆启用状态失败, wife_id: {wife_id}, error: {e}")
-            return False
+        return self.wives.set_enabled(wife_id, enabled)
 
     def add_wife(self, name: str, url: str) -> int | None:
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "INSERT INTO wife_urls (url, name, enabled, created_at) VALUES (?, ?, 1, ?)",
-                (url, name, beijing_now_str()),
-            )
-            self.conn.commit()
-            return cursor.lastrowid
-        except sqlite3.Error as e:
-            logger.exception(f"增加老婆失败, name: {name}, url: {url}, error: {e}")
-            return None
+        return self.wives.add(name, url)
 
     def update_wife(self, wife_id: int, name: str | None = None, url: str | None = None) -> bool:
         """更新老婆的名字和/或图片地址。None 表示保留原值。"""
-        if name is None and url is None:
-            return False
-        fields = []
-        values: list[Any] = []
-        if name is not None:
-            fields.append("name = ?")
-            values.append(name)
-        if url is not None:
-            fields.append("url = ?")
-            values.append(url)
-        values.append(wife_id)
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(f"UPDATE wife_urls SET {', '.join(fields)} WHERE id = ?", values)
-            self.conn.commit()
-            return cursor.rowcount > 0
-        except sqlite3.Error as e:
-            logger.exception(f"更新老婆失败, wife_id: {wife_id}, error: {e}")
-            return False
+        return self.wives.update(wife_id, name, url)
     def get_wife(self, user_id: str, channel_id: str, guild_id: str):
-        today = self._get_today_str()
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT w.id, w.url, w.name
-            FROM user_wife_daily uw
-            JOIN wife_urls w ON uw.wife_id = w.id
-            WHERE uw.user_id = ? AND uw.date = ?
-            """,
-            (user_id, today),
-        )
-
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-
-        # 如果今天没有记录，则随机选一个老婆
-        cursor.execute(
-            """
-            SELECT id, url, name
-            FROM wife_urls
-            WHERE enabled = 1
-            ORDER BY RANDOM()
-            LIMIT 1
-            """
-        )
-
-        row = cursor.fetchone()
-        if not row:
-            return {}
-
-        wife_id = row["id"]
-        cursor.execute(
-            """
-            INSERT OR IGNORE INTO user_wife_daily (user_id, wife_id, channel_id, guild_id, date, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (user_id, wife_id, channel_id, guild_id, today, beijing_now_str()),
-        )
-
-        self.conn.commit()
-
-        # 再查一次，确保拿到“最终绑定的”
-        cursor.execute(
-            """
-            SELECT w.id, w.url, w.name
-            FROM user_wife_daily uw
-            JOIN wife_urls w ON uw.wife_id = w.id
-            WHERE uw.user_id = ? AND uw.date = ?
-            """,
-            (user_id, today),
-        )
-
-        result = cursor.fetchone()
-        return dict(result) if result else {}
+        return self.wives.get_or_draw(user_id, channel_id, guild_id)
 
     def get_num_wives(self):
         """获取老婆池中老婆的数量"""
-        sql = "SELECT COUNT(*) AS count FROM wife_urls WHERE enabled = 1"
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(sql)
-            result = cursor.fetchone()
-            return result["count"] if result else 0
-        except sqlite3.Error as e:
-            logger.exception(f"获取老婆数量失败, error: {e}")
-            return 0
+        return self.wives.count_enabled()
 
     def get_user_wife_certain_date(self, user_id: str, date: str) -> dict[str, Any]:
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT w.id, w.url, w.name
-            FROM user_wife_daily uw
-            JOIN wife_urls w ON uw.wife_id = w.id
-            WHERE uw.user_id = ? AND uw.date = ?
-            """,
-            (user_id, date),
-        )
-
-        row = cursor.fetchone()
-        return dict(row) if row else {}
+        return self.wives.get_for_date(user_id, date)
     
     def get_user_wife_counts(self, user_id: str, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
         """获取用户的不同老婆次数统计，同名老婆合并，按降序排序，分页"""
-        offset = (page - 1) * page_size
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT MIN(w.id) AS id, MIN(w.url) AS url, w.name, COUNT(*) AS count
-            FROM user_wife_daily uw
-            JOIN wife_urls w ON uw.wife_id = w.id
-            WHERE uw.user_id = ?
-            GROUP BY w.name
-            ORDER BY count DESC
-            LIMIT ? OFFSET ?
-            """,
-            (user_id, page_size, offset),
-        )
-
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return self.wives.get_user_counts(user_id, page, page_size)
     
     def get_wife_counts(self, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
         """获取每个老婆的次数统计，同名老婆合并，按降序排序，分页"""
-        offset = (page - 1) * page_size
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT MIN(w.id) AS id, MIN(w.url) AS url, w.name, COUNT(*) AS count
-            FROM user_wife_daily uw
-            JOIN wife_urls w ON uw.wife_id = w.id
-            GROUP BY w.name
-            ORDER BY count DESC
-            LIMIT ? OFFSET ?
-            """,
-            (page_size, offset),
-        )
-
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return self.wives.get_counts(page, page_size)
 
     def get_wife_user_counts_by_name(
         self, wife_name: str, page: int = 1, page_size: int = 10
     ) -> list[dict[str, Any]]:
         """统计抽到指定名字老婆次数最多的用户，同名老婆合并，分页。"""
-        offset = (page - 1) * page_size
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT uw.user_id, COUNT(*) AS count
-            FROM user_wife_daily uw
-            JOIN wife_urls w ON uw.wife_id = w.id
-            WHERE w.name = ?
-            GROUP BY uw.user_id
-            ORDER BY count DESC, uw.user_id
-            LIMIT ? OFFSET ?
-            """,
-            (wife_name, page_size, offset),
-        )
-
-        return [dict(row) for row in cursor.fetchall()]
+        return self.wives.get_user_counts_by_name(wife_name, page, page_size)
     
 
     ### 被创相关操作 ###
