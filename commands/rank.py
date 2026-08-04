@@ -61,7 +61,7 @@ rank_help_str = dedent(
     —————————————
     🔹 排行榜 被创丨历史被创丨累计被创 | 被创次数 | 平均被创 [最少次数(3)]
     🔹 排行榜 命令丨他的命令 [@用户(不加则为自己)]丨命令用户 [命令名]
-    🔹 排行榜 老婆 [页数(1)] | 我的老婆 [页数(1)] | 老婆用户 [老婆名]
+    🔹 排行榜 老婆 [页数(1)] | 我的老婆 [页数(1)] | 老婆用户 [老婆名] [页数(1)]
     """
 )
 
@@ -587,10 +587,19 @@ class RankCommand(Command):
     # =====================================================
     @rank_handler("老婆用户")
     async def _rank_wife_users(self, message: Message, args: List[str]) -> RankResult:
+        page_size = 10
         if not args:
             return RankResult(error="请输入老婆名")
 
-        keyword = " ".join(args).strip()
+        page = 1
+        keyword_args = args
+        if len(args) > 1 and re.fullmatch(r"[+-]?\d+", args[-1]):
+            page = int(args[-1])
+            if page < 1:
+                return RankResult(error="参数错误, 页数应为一个正整数")
+            keyword_args = args[:-1]
+
+        keyword = " ".join(keyword_args).strip()
         if not keyword:
             return RankResult(error="请输入老婆名")
 
@@ -609,7 +618,9 @@ class RankCommand(Command):
         groups: List[Dict[str, Any]] = []
         user_ids: List[str] = []
         for wife_name in wife_names:
-            users = dao.get_wife_user_counts_by_name(wife_name)
+            users = dao.get_wife_user_counts_by_name(
+                wife_name, page=page, page_size=page_size
+            )
             groups.append({"name": wife_name, "users": users})
             user_ids.extend(row["user_id"] for row in users)
 
@@ -620,7 +631,8 @@ class RankCommand(Command):
             if not row["users"]:
                 lines.append("暂无抽取记录")
             else:
-                for rank, user_row in enumerate(row["users"], start=1):
+                start_rank = (page - 1) * page_size + 1
+                for rank, user_row in enumerate(row["users"], start=start_rank):
                     user_id = user_row["user_id"]
                     username = usernames.get(user_id)
                     # if not username or username == "未知用户":
@@ -630,7 +642,7 @@ class RankCommand(Command):
 
         return RankResult(
             RankConfig(
-                title=f"名字包含“{keyword}”的老婆用户排行榜：",
+                title=f"名字包含“{keyword}”的老婆用户排行榜 (第{page}页)：",
                 top_data=groups,
                 render_row=render_row,
                 render_footer=None,

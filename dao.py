@@ -780,9 +780,10 @@ class Dao:
         return [dict(row) for row in rows]
 
     def get_wife_user_counts_by_name(
-        self, wife_name: str, limit: int = 10
+        self, wife_name: str, page: int = 1, page_size: int = 10
     ) -> list[dict[str, Any]]:
-        """统计抽到指定名字老婆次数最多的用户，同名老婆合并。"""
+        """统计抽到指定名字老婆次数最多的用户，同名老婆合并，分页。"""
+        offset = (page - 1) * page_size
         cursor = self.conn.cursor()
         cursor.execute(
             """
@@ -792,9 +793,9 @@ class Dao:
             WHERE w.name = ?
             GROUP BY uw.user_id
             ORDER BY count DESC, uw.user_id
-            LIMIT ?
+            LIMIT ? OFFSET ?
             """,
-            (wife_name, limit),
+            (wife_name, page_size, offset),
         )
 
         return [dict(row) for row in cursor.fetchall()]
