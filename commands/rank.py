@@ -569,7 +569,7 @@ class RankCommand(Command):
         else:
             page = 1
 
-        top_data = dao.get_user_wife_counts(user_id, page=page)
+        top_data = dao.wives.get_user_counts(user_id, page=page)
         def render_row(rank: int, row: dict) -> str:
             return f"{rank}. {row['name']} ({row['count']}次)"
 
@@ -605,7 +605,7 @@ class RankCommand(Command):
 
         dao = get_dao()
         guild_id = message.guild_id
-        wives = dao.search_wives_by_name(keyword)
+        wives = dao.wives.search_by_name(keyword)
 
         # 搜索结果可能包含多个同名但不同 ID 的老婆；这里只保留唯一名字，
         # 后续统计会把这些 ID 的历史记录合并起来。
@@ -618,7 +618,7 @@ class RankCommand(Command):
         groups: List[Dict[str, Any]] = []
         user_ids: List[str] = []
         for wife_name in wife_names:
-            users = dao.get_wife_user_counts_by_name(
+            users = dao.wives.get_user_counts_by_name(
                 wife_name, page=page, page_size=page_size
             )
             groups.append({"name": wife_name, "users": users})
@@ -664,7 +664,7 @@ class RankCommand(Command):
         else:
             page = 1
 
-        top_data = dao.get_wife_counts(page=page)
+        top_data = dao.wives.get_counts(page=page)
         def render_row(rank: int, row: dict) -> str:
             return f"{rank}. {row['name']} ({row['count']}次)"
 

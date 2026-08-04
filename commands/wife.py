@@ -16,7 +16,7 @@ from utils.time_utils import beijing_now
 
 _log = logging.get_logger()
 
-_log.info(f"共有{get_dao().get_num_wives()}个老婆")
+_log.info(f"共有{get_dao().wives.count_enabled()}个老婆")
 
 
 def parse_refresh_time(text: str) -> str | None:
@@ -296,7 +296,7 @@ class WifeCommand(Command):
             )
             return
 
-        wife_result = dao.get_wife(
+        wife_result = dao.wives.get_or_draw(
             message.author.id, message.channel_id, message.guild_id
         )
 
@@ -357,7 +357,7 @@ class MyWifeCommand(Command):
                 return
             date_str = date.strftime("%Y-%m-%d")
 
-        wife_result = dao.get_user_wife_certain_date(message.author.id, date_str)
+        wife_result = dao.wives.get_for_date(message.author.id, date_str)
 
         if not wife_result:
             await self.send_reply(
@@ -386,7 +386,7 @@ class WifeListCommand(Command):
             return
 
         page = int(args[0]) if args else 1
-        wives, total = get_dao().get_wives_page(page=page, page_size=10)
+        wives, total = get_dao().wives.get_page(page=page, page_size=10)
         if total == 0:
             await self.send_reply(message, "老婆列表为空。")
             return
@@ -430,7 +430,7 @@ class WifeByIdCommand(Command):
         if len(args) != 1 or not args[0].isdigit():
             await self.send_reply(message, "用法：/老婆详情 <id>")
             return
-        wife = get_dao().get_wife_by_id(int(args[0]))
+        wife = get_dao().wives.get_by_id(int(args[0]))
         if not wife:
             await self.send_reply(message, f"没有找到 ID 为 {args[0]} 的老婆。")
             return
@@ -447,7 +447,7 @@ class SearchWifeCommand(Command):
         if not keyword:
             await self.send_reply(message, "用法：/查老婆 <名字关键字>")
             return
-        wives = get_dao().search_wives_by_name(keyword)
+        wives = get_dao().wives.search_by_name(keyword)
         if not wives:
             await self.send_reply(message, f"没有找到名字包含“{keyword}”的老婆。")
             return
@@ -500,7 +500,7 @@ class SetWifeEnabledCommand(Command):
             await self.send_reply(message, "状态只能是“启用”或“禁用”。")
             return
         wife_id = int(args[0])
-        if not get_dao().set_wife_enabled(wife_id, states[state_text]):
+        if not get_dao().wives.set_enabled(wife_id, states[state_text]):
             await self.send_reply(message, f"设置失败：ID {wife_id} 不存在。")
             return
         await self.send_reply(message, f"已{'启用' if states[state_text] else '禁用'}老婆 ID {wife_id}。")
@@ -529,7 +529,7 @@ class AddWifeCommand(Command):
             await self.send_reply(message, f"增加失败：图片下载失败（{e}）。")
             return
 
-        wife_id = get_dao().add_wife(name, local_path)
+        wife_id = get_dao().wives.add(name, local_path)
         if wife_id is None:
             try:
                 os.remove(local_path)
@@ -551,7 +551,7 @@ class UpdateWifeCommand(Command):
             await self.send_reply(message, "用法：/更新老婆 <id> <新名字或-> [新图片URL]；也可以发送图片附件。")
             return
         wife_id = int(args[0])
-        old_wife = get_dao().get_wife_by_id(wife_id)
+        old_wife = get_dao().wives.get_by_id(wife_id)
         if not old_wife:
             await self.send_reply(message, f"更新失败：ID {wife_id} 不存在。")
             return
@@ -575,7 +575,7 @@ class UpdateWifeCommand(Command):
                 await self.send_reply(message, f"更新失败：图片处理失败（{e}）。")
                 return
 
-        if not get_dao().update_wife(wife_id, name=name, url=local_path):
+        if not get_dao().wives.update(wife_id, name=name, url=local_path):
             if local_path is not None:
                 remove_local_wife_image(local_path)
             await self.send_reply(message, "更新失败，写入数据库时发生错误。")
@@ -583,7 +583,7 @@ class UpdateWifeCommand(Command):
 
         if local_path is not None and old_wife.get("url") != local_path:
             remove_local_wife_image(old_wife.get("url"))
-        await send_wife_card(self, message, get_dao().get_wife_by_id(wife_id), "更新成功")
+        await send_wife_card(self, message, get_dao().wives.get_by_id(wife_id), "更新成功")
 
 @command("老婆刷新时间", "设置老婆刷新时间", "wife_refresh_time", "set_wife_refresh_time")
 class WifeRefreshTimeCommand(Command):
@@ -614,4 +614,3 @@ class WifeRefreshTimeCommand(Command):
             await self.send_reply(message, f"老婆刷新时间已设置为：{refresh_time}")
         else:
             await self.send_reply(message, "设置老婆刷新时间失败，请稍后再试！")
-
