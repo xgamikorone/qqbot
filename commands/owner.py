@@ -57,7 +57,7 @@ class AddOwnerCommand(Command):
             return
 
         note = " ".join(args[1:])
-        if get_dao().add_bot_owner(user_id, note):
+        if get_dao().owners.add(user_id, note):
             await self.send_reply(message, f"已添加作者：{_mention_user(user_id)}")
         else:
             await self.send_reply(message, f"添加作者失败：{_mention_user(user_id)}")
@@ -79,7 +79,7 @@ class RemoveOwnerCommand(Command):
             await self.send_reply(message, f"该用户不在当前频道：{_mention_user(user_id)}")
             return
 
-        if get_dao().remove_bot_owner(user_id):
+        if get_dao().owners.remove(user_id):
             await self.send_reply(message, f"已删除作者：{_mention_user(user_id)}")
         else:
             await self.send_reply(message, f"未找到作者：{_mention_user(user_id)}")
@@ -92,7 +92,7 @@ class ListOwnersCommand(Command):
     owner_only = True
 
     async def execute(self, message: Message, args: List[str]):
-        owners = get_dao().get_bot_owners()
+        owners = get_dao().owners.get_all()
         if not owners:
             await self.send_reply(message, "数据库中还没有作者。")
             return

@@ -133,7 +133,7 @@ class CommandManager:
             args = msgs[2:]
             command = self.commands[cmd_name]
             success = True
-            if command.owner_only and not get_dao().is_bot_owner(message.author.id):
+            if command.owner_only and not get_dao().owners.contains(message.author.id):
                 await command.send_reply(message, "这个命令只有作者本人可以使用。")
                 return True, False
 

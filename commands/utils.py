@@ -17,7 +17,7 @@ def is_admin(roles: list[str], admin_ids=(2, 4, 5)):
     
 def is_admin_or_owner(message: Message):
     admin = is_admin(message.member.roles)
-    owner = get_dao().is_bot_owner(message.author.id)
+    owner = get_dao().owners.contains(message.author.id)
     return admin or owner
 
 
