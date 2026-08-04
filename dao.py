@@ -3,6 +3,7 @@ import os
 import sqlite3
 import logging
 from typing import Any, Dict, List
+from database.schema import initialize_schema
 from utils.time_utils import beijing_now_str
 
 DB_NAME = "user.db"
@@ -31,96 +32,7 @@ class Dao:
         return {owner_id.strip() for owner_id in owner_ids.split(",") if owner_id.strip()}
 
     def _init_db(self):
-        sql = """
-        PRAGMA journal_mode = WAL;
-        PRAGMA busy_timeout = 30000;
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            uid INTEGER NOT NULL UNIQUE,
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
-        );
-
-        -- 子表：昵称表
-        CREATE TABLE IF NOT EXISTS user_nicknames (
-            id INTEGER PRIMARY KEY,       -- 自增ID
-            uid INTEGER NOT NULL,         -- 外键指向 users.uid
-            nickname TEXT NOT NULL UNIQUE, -- 昵称全局唯一，便于通过昵称查询uid
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
-            FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-        );
-
-        -- 为昵称建立索引，加快查询
-        CREATE INDEX IF NOT EXISTS idx_nickname ON user_nicknames(nickname);
-
-        -- Bot 配置
-        CREATE TABLE IF NOT EXISTS bot_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
-        );
-
-        CREATE TABLE IF NOT EXISTS bot_owners (
-            user_id TEXT PRIMARY KEY,
-            note TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
-        );
-
-        -- 子表：调用记录
-        CREATE TABLE IF NOT EXISTS command_records (
-            id INTEGER PRIMARY KEY,
-            message_id TEXT NOT NULL,  -- 调用消息的message_id
-            channel_id TEXT NOT NULL,  -- 调用消息所在的channel_id
-            guild_id TEXT NOT NULL,    -- 调用消息所在的guild_id
-            content TEXT NOT NULL,     -- 调用消息的content
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
-            user_id TEXT NOT NULL,  -- 调用者的uid
-            user_name TEXT NOT NULL,  -- 调用者的昵称
-            command_name TEXT NOT NULL,  -- 调用的命令名
-            command_args TEXT NOT NULL  -- 调用的命令参数
-        );
-
-        -- 老婆池
-        CREATE TABLE IF NOT EXISTS wife_urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT NOT NULL UNIQUE,
-            name TEXT,
-            enabled INTEGER DEFAULT 1,
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours'))
-        );
-
-        -- 用户每日老婆记录
-        CREATE TABLE IF NOT EXISTS user_wife_daily (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,      -- QQ 用户 ID
-            wife_id INTEGER NOT NULL,      -- 对应 wife_urls.id
-
-            channel_id TEXT NOT NULL,  -- 调用消息所在的channel_id
-            guild_id TEXT NOT NULL,    -- 调用消息所在的guild_id
-            
-            date TEXT NOT NULL,            -- 'YYYY-MM-DD'
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
-
-            UNIQUE (user_id, date),
-            FOREIGN KEY (wife_id) REFERENCES wife_urls(id)
-        );
-
-        -- 每日被创记录
-        CREATE TABLE IF NOT EXISTS user_chuang_daily (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,      -- QQ 用户 ID
-            distance INTEGER NOT NULL,   -- 创的距离，单位：米
-            channel_id TEXT NOT NULL,  -- 调用消息所在的channel_id
-            guild_id TEXT NOT NULL,    -- 调用消息所在的guild_id
-
-            date TEXT NOT NULL,            -- 'YYYY-MM-DD'
-            created_at TIMESTAMP DEFAULT (datetime('now', '+8 hours')),
-
-            UNIQUE (user_id, date)
-        )
-        
-
-        """
-        self.conn.executescript(sql)
+        initialize_schema(self.conn)
 
         # self._reset_wives()
         # self._add_wives()
