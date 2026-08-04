@@ -33,7 +33,7 @@ class AddNicknameCommand(Command):
         if uid_or_nickname.isdigit():
             uid = int(uid_or_nickname)
         else:
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(
                     message, f"昵称{uid_or_nickname}没有对应的uid，请先添加！"
@@ -45,7 +45,7 @@ class AddNicknameCommand(Command):
                 message, "昵称不能为纯数字，否则在查询时bot无法判断是uid还是昵称！"
             )
             return
-        if dao.add_nickname(uid, nickname):
+        if dao.nicknames.add(uid, nickname):
             await self.send_reply(message, f"成功为uid {uid}添加昵称 {nickname}！")
         else:
             await self.send_reply(message, f"添加失败，昵称 {nickname} 可能已存在！")
@@ -58,7 +58,7 @@ class AllNicknamesCommand(Command):
     cn_name = "所有昵称"
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
-        all_nicknames = dao.get_all_nicknames()
+        all_nicknames = dao.nicknames.get_all()
         res_str = "所有昵称:\n"
 
         res_str += "\n".join(
@@ -80,14 +80,14 @@ class CheckNicknameCommand(Command):
         if uid_or_nickname.isdigit():
             uid = int(uid_or_nickname)
         else:
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(
                     message, f"昵称{uid_or_nickname}没有对应的uid，请先添加！"
                 )
                 return
 
-        nicknames = dao.get_nicknames_by_uid(uid)
+        nicknames = dao.nicknames.get_for_uid(uid)
         _log.info(f"uid: {uid}, nicknames: {nicknames}")
         if not nicknames:
             await self.send_reply(message, f"uid {uid}没有昵称！")
@@ -110,7 +110,7 @@ class CheckUidCommand(Command):
         if nickname.isdigit():
             await self.send_reply(message, "昵称不能为纯数字!")
         dao = get_dao()
-        uid = dao.get_uid_by_nickname(nickname)
+        uid = dao.nicknames.get_uid(nickname)
         _log.info(f"nickname: {nickname}, uid: {uid}")
         if uid is None:
             await self.send_reply(message, f"昵称 {nickname} 没有对应的uid!")
@@ -152,13 +152,13 @@ class DeleteNicknameCommand(Command):
         if nickname.isdigit():
             # 如果输入是uid，则删除uid对应的昵称
             uid = int(nickname)
-            if dao.delete_nickname_by_uid(uid):
+            if dao.nicknames.delete_for_uid(uid):
                 await self.send_reply(message, f"成功删除uid {uid}对应的昵称！")
             else:
                 await self.send_reply(message, f"删除失败，uid {uid} 没有对应的昵称！")
             return
 
-        if dao.delete_nickname(nickname):
+        if dao.nicknames.delete(nickname):
             await self.send_reply(message, f"成功删除昵称 {nickname}！")
         else:
             await self.send_reply(message, f"删除失败，昵称 {nickname} 可能不存在！")

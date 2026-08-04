@@ -42,7 +42,7 @@ class RevenueCommand(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的主播")
                 return
@@ -130,7 +130,7 @@ class SuperChatCommand(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的主播")
                 return
@@ -184,7 +184,7 @@ class StreamerGuardsCommand(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的主播")
                 return
@@ -256,7 +256,7 @@ class UserSuperChatCommand(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的用户")
                 return
@@ -295,7 +295,7 @@ class UserSuperChatCommand(Command):
             else:
                 # 是昵称
                 dao = get_dao()
-                streamer_uid = dao.get_uid_by_nickname(room)
+                streamer_uid = dao.nicknames.get_uid(room)
                 if streamer_uid is None:
                     await self.send_reply(message, f"未找到昵称为{room}的主播")
                     return
@@ -367,7 +367,7 @@ class UserGuardsCommand(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的用户")
                 return
@@ -405,7 +405,7 @@ class UserGuardsCommand(Command):
             else:
                 # 是昵称
                 dao = get_dao()
-                streamer_uid = dao.get_uid_by_nickname(room)
+                streamer_uid = dao.nicknames.get_uid(room)
                 if streamer_uid is None:
                     await self.send_reply(message, f"未找到昵称为{room}的主播")
                     return
@@ -487,7 +487,7 @@ class UserDanmusCommand(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is None:
                 await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的用户")
                 return
@@ -525,7 +525,7 @@ class UserDanmusCommand(Command):
             else:
                 # 是昵称
                 dao = get_dao()
-                streamer_uid = dao.get_uid_by_nickname(room)
+                streamer_uid = dao.nicknames.get_uid(room)
                 if streamer_uid is None:
                     await self.send_reply(message, f"未找到昵称为{room}的主播")
                     return
@@ -636,12 +636,12 @@ class RevenueCommandV2(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is not None:
                 uids = [uid]
             else:
                 # 模糊查找
-                uids = dao.get_uids_by_nickname_like(uid_or_nickname)
+                uids = dao.nicknames.find_uids(uid_or_nickname)
                 # 未找到
                 if uids is None or not uids:
                     await self.send_reply(
@@ -743,12 +743,12 @@ class SuperChatCommandV2(Command):
         else:
             # 是昵称
             dao = get_dao()
-            uid = dao.get_uid_by_nickname(uid_or_nickname)
+            uid = dao.nicknames.get_uid(uid_or_nickname)
             if uid is not None:
                 uids = [uid]
             else:
                 # 模糊查找
-                uids = dao.get_uids_by_nickname_like(uid_or_nickname)
+                uids = dao.nicknames.find_uids(uid_or_nickname)
                 # 未找到
                 if uids is None or not uids:
                     await self.send_reply(
