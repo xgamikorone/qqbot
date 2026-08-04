@@ -208,7 +208,7 @@ class RankCommand(Command):
             if any(row["user_id"] == user_id for row in top_data):
                 return None
 
-            distance = dao.chuang.get_distance(user_id, guild_id, today_str)
+            distance = dao.chuang.get_distance(user_id, today_str)
 
             if distance is None:
                 return None

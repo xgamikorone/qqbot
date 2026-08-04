@@ -12,14 +12,14 @@ class ChuangRepository:
     def __init__(self, connection: sqlite3.Connection):
         self.conn = connection
 
-    def get_distance(self, user_id: str, guild_id: str, date: str) -> int | None:
+    def get_distance(self, user_id: str, date: str) -> int | None:
         row = self.conn.execute(
             """
             SELECT distance
             FROM user_chuang_daily
-            WHERE user_id = ? AND guild_id = ? AND date = ?
+            WHERE user_id = ? AND date = ?
             """,
-            (user_id, guild_id, date),
+            (user_id, date),
         ).fetchone()
         return row["distance"] if row else None
 

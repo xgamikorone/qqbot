@@ -50,8 +50,7 @@ class ChuangCommand(Command):
         guild_id = message.guild_id
 
         # 1️⃣ 查今天是否已经创过
-        today_row = dao.chuang.get_distance(
-            user_id, message.guild_id, today)
+        today_row = dao.chuang.get_distance(user_id, today)
 
         _log.info(
             f"user_id: {user_id}, nickname: {nickname}, channel_id: {channel_id}, guild_id: {guild_id}, today: {today}, today_row: {today_row}")

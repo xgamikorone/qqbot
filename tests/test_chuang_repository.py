@@ -18,14 +18,23 @@ class ChuangRepositoryTest(unittest.TestCase):
         self.dao.chuang.record(user_id, distance, "channel", guild_id, date)
 
     def test_daily_distance_and_rank_are_scoped_to_guild(self):
-        distance = self.dao.chuang.get_distance(
-            "user-1", "guild-a", "2026-08-01"
-        )
+        distance = self.dao.chuang.get_distance("user-1", "2026-08-01")
+
+    def test_daily_record_can_be_reused_from_another_guild(self):
+        date = "2026-08-03"
+        self.dao.chuang.record("user-4", 123, "channel-a", "guild-a", date)
+
+        distance = self.dao.chuang.get_distance("user-4", date)
+        if distance is None:
+            self.dao.chuang.record("user-4", 456, "channel-b", "guild-b", date)
+            distance = 456
+
+        self.assertEqual(123, distance)
         rank = self.dao.chuang.get_daily_rank(
             distance, "guild-a", "2026-08-01"
         )
 
-        self.assertEqual(100, distance)
+        self.assertEqual(123, distance)
         self.assertEqual(2, rank)
         self.assertEqual(
             ["user-2", "user-1"],
