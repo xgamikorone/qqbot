@@ -13,7 +13,7 @@ class WifeDaoTest(unittest.TestCase):
     def _add_wife_record(
         self, user_id: str, wife_name: str, date: str, url_suffix: str = ""
     ) -> None:
-        wife_id = self.dao.add_wife(
+        wife_id = self.dao.wives.add(
             wife_name, f"https://example.com/{wife_name}/{url_suffix or date}.jpg"
         )
         self.assertIsNotNone(wife_id)
@@ -49,8 +49,8 @@ class WifeDaoTest(unittest.TestCase):
                 url_suffix=str(index),
             )
 
-        first_page = self.dao.get_wife_user_counts_by_name("Alice", page=1)
-        second_page = self.dao.get_wife_user_counts_by_name("Alice", page=2)
+        first_page = self.dao.wives.get_user_counts_by_name("Alice", page=1)
+        second_page = self.dao.wives.get_user_counts_by_name("Alice", page=2)
 
         self.assertEqual(10, len(first_page))
         self.assertEqual(["user-10", "user-11"], [row["user_id"] for row in second_page])
@@ -59,7 +59,7 @@ class WifeDaoTest(unittest.TestCase):
         self._add_wife_record("user-1", "Alice", "2026-07-01", "first")
         self._add_wife_record("user-1", "Alice", "2026-07-02", "second")
 
-        rows = self.dao.get_user_wife_counts("user-1")
+        rows = self.dao.wives.get_user_counts("user-1")
 
         self.assertEqual(1, len(rows))
         self.assertEqual("Alice", rows[0]["name"])

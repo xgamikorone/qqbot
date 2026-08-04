@@ -484,54 +484,6 @@ class Dao:
     def set_wife_refresh_time(self, refresh_time: str) -> bool:
         return self.set_setting("wife_refresh_time", refresh_time)
     
-    ### 老婆相关操作 ###
-
-    def get_wife_by_id(self, wife_id: int) -> dict[str, Any]:
-        """按 ID 查询老婆（包括已禁用的记录）。"""
-        return self.wives.get_by_id(wife_id)
-
-    def search_wives_by_name(self, name: str, limit: int = 10) -> list[dict[str, Any]]:
-        """使用 LIKE 模糊查询名字，并限制返回数量。"""
-        return self.wives.search_by_name(name, limit)
-
-    def get_wives_page(self, page: int = 1, page_size: int = 10) -> tuple[list[dict[str, Any]], int]:
-        """按 ID 升序分页查询全部老婆，并返回总数量。"""
-        return self.wives.get_page(page, page_size)
-
-    def set_wife_enabled(self, wife_id: int, enabled: bool) -> bool:
-        return self.wives.set_enabled(wife_id, enabled)
-
-    def add_wife(self, name: str, url: str) -> int | None:
-        return self.wives.add(name, url)
-
-    def update_wife(self, wife_id: int, name: str | None = None, url: str | None = None) -> bool:
-        """更新老婆的名字和/或图片地址。None 表示保留原值。"""
-        return self.wives.update(wife_id, name, url)
-    def get_wife(self, user_id: str, channel_id: str, guild_id: str):
-        return self.wives.get_or_draw(user_id, channel_id, guild_id)
-
-    def get_num_wives(self):
-        """获取老婆池中老婆的数量"""
-        return self.wives.count_enabled()
-
-    def get_user_wife_certain_date(self, user_id: str, date: str) -> dict[str, Any]:
-        return self.wives.get_for_date(user_id, date)
-    
-    def get_user_wife_counts(self, user_id: str, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
-        """获取用户的不同老婆次数统计，同名老婆合并，按降序排序，分页"""
-        return self.wives.get_user_counts(user_id, page, page_size)
-    
-    def get_wife_counts(self, page: int = 1, page_size: int = 10) -> list[dict[str, Any]]:
-        """获取每个老婆的次数统计，同名老婆合并，按降序排序，分页"""
-        return self.wives.get_counts(page, page_size)
-
-    def get_wife_user_counts_by_name(
-        self, wife_name: str, page: int = 1, page_size: int = 10
-    ) -> list[dict[str, Any]]:
-        """统计抽到指定名字老婆次数最多的用户，同名老婆合并，分页。"""
-        return self.wives.get_user_counts_by_name(wife_name, page, page_size)
-    
-
     ### 被创相关操作 ###
 
     def get_today_chuang_distance(
@@ -973,4 +925,4 @@ def get_dao(db_name=DB_NAME):
 
 if __name__ == "__main__":
     dao = get_dao()
-    print(dao.get_num_wives())
+    print(dao.wives.count_enabled())
