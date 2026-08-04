@@ -286,7 +286,7 @@ class WifeCommand(Command):
     async def execute(self, message: Message, args: List[str]):
 
         dao = get_dao()
-        refresh_time = dao.get_wife_refresh_time()
+        refresh_time = dao.settings.wife_refresh_time
         now, today_refresh_time = get_today_refresh_time(refresh_time)
         if now < today_refresh_time:
             remaining_seconds = int((today_refresh_time - now).total_seconds())
@@ -593,7 +593,7 @@ class WifeRefreshTimeCommand(Command):
 
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
-        current_refresh_time = dao.get_wife_refresh_time()
+        current_refresh_time = dao.settings.wife_refresh_time
 
         if not args or args[0] in ("查看", "查询", "current"):
             await self.send_reply(message, f"当前老婆刷新时间：{current_refresh_time}")
@@ -610,7 +610,7 @@ class WifeRefreshTimeCommand(Command):
             )
             return
 
-        if dao.set_wife_refresh_time(refresh_time):
+        if dao.settings.set_wife_refresh_time(refresh_time):
             await self.send_reply(message, f"老婆刷新时间已设置为：{refresh_time}")
         else:
             await self.send_reply(message, "设置老婆刷新时间失败，请稍后再试！")

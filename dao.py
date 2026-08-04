@@ -8,6 +8,7 @@ from database.repositories.chuang_repository import ChuangRepository
 from database.repositories.command_record_repository import CommandRecordRepository
 from database.repositories.nickname_repository import NicknameRepository
 from database.repositories.owner_repository import OwnerRepository
+from database.repositories.settings_repository import SettingsRepository
 from database.repositories.wife_repository import WifeRepository
 from database.schema import initialize_schema
 from utils.time_utils import beijing_now_str
@@ -28,6 +29,7 @@ class Dao:
         self.command_records = CommandRecordRepository(self.conn)
         self.nicknames = NicknameRepository(self.conn)
         self.owners = OwnerRepository(self.conn)
+        self.settings = SettingsRepository(self.conn)
 
     def add_user(self, uid):
         cursor = self.conn.cursor()
