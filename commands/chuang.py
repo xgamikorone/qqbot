@@ -50,7 +50,7 @@ class ChuangCommand(Command):
         guild_id = message.guild_id
 
         # 1️⃣ 查今天是否已经创过
-        today_row = dao.get_today_chuang_distance(
+        today_row = dao.chuang.get_distance(
             user_id, message.guild_id, today)
 
         _log.info(
@@ -63,21 +63,21 @@ class ChuangCommand(Command):
             distance = biased_random(power=3.0)
 
             # 2️⃣ 查询历史最高纪录（插入前）
-            history_max = dao.get_chuang_history_max(user_id)
+            history_max = dao.chuang.get_history_max(user_id)
 
             if distance > history_max:
                 refreshed = True
 
-            dao.insert_chuang(user_id, distance, channel_id, guild_id, today)
+            dao.chuang.record(user_id, distance, channel_id, guild_id, today)
 
         # 3️⃣ 今日群内排名
-        today_rank = dao.get_today_chuang_rank_cur_guild(
+        today_rank = dao.chuang.get_daily_rank(
             distance, message.guild_id, today)
 
         # 4️⃣ 历史排名（只有破纪录才算）
         history_rank = None
         if refreshed:
-            history_rank = dao.get_chuang_history_rank_cur_guild(
+            history_rank = dao.chuang.get_history_rank(
                 distance, message.guild_id)
 
         # 5️⃣ 选择图片（破纪录优先）

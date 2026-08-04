@@ -192,7 +192,7 @@ class RankCommand(Command):
         user_id = message.author.id
         today_str = beijing_now_str("%Y-%m-%d")
 
-        top_data = dao.get_chuang_top_k_cur_guild(10, today_str, guild_id)
+        top_data = dao.chuang.get_daily_top(10, today_str, guild_id)
 
         user_ids = [row["user_id"] for row in top_data]
         usernames = await self._fetch_usernames(guild_id, user_ids)
@@ -208,12 +208,12 @@ class RankCommand(Command):
             if any(row["user_id"] == user_id for row in top_data):
                 return None
 
-            distance = dao.get_today_chuang_distance(user_id, guild_id, today_str)
+            distance = dao.chuang.get_distance(user_id, guild_id, today_str)
 
             if distance is None:
                 return None
 
-            rank = dao.get_chuang_history_rank_cur_guild(distance, guild_id)
+            rank = dao.chuang.get_history_rank(distance, guild_id)
 
             user = await self.client.api.get_guild_member(guild_id, user_id)
 
@@ -239,7 +239,7 @@ class RankCommand(Command):
         guild_id = message.guild_id
         user_id = message.author.id
 
-        top_data = dao.get_chuang_top_k_cur_guild_history(10, guild_id)
+        top_data = dao.chuang.get_history_top(10, guild_id)
 
         user_ids = [row["user_id"] for row in top_data]
         usernames = await self._fetch_usernames(guild_id, user_ids)
@@ -255,7 +255,7 @@ class RankCommand(Command):
             if any(row["user_id"] == user_id for row in top_data):
                 return None
 
-            data = dao.get_user_chuang_history_best(user_id, guild_id)
+            data = dao.chuang.get_user_history_best(user_id, guild_id)
 
             if not data:
                 return None
@@ -284,7 +284,7 @@ class RankCommand(Command):
         guild_id = message.guild_id
         user_id = message.author.id
 
-        top_data = dao.get_chuang_total_top_k_cur_guild(10, guild_id)
+        top_data = dao.chuang.get_total_top(10, guild_id)
 
         user_ids = [row["user_id"] for row in top_data]
         usernames = await self._fetch_usernames(guild_id, user_ids)
@@ -300,7 +300,7 @@ class RankCommand(Command):
             if any(row["user_id"] == user_id for row in top_data):
                 return None
 
-            data = dao.get_user_chuang_total(user_id, guild_id)
+            data = dao.chuang.get_user_total(user_id, guild_id)
 
             if not data:
                 return None
@@ -334,7 +334,7 @@ class RankCommand(Command):
             else:
                 return RankResult(error="参数错误, 请输入一个整数")
 
-        top_data = dao.get_chuang_average_top_k_cur_guild(10, guild_id, min_limit)
+        top_data = dao.chuang.get_average_top(10, guild_id, min_limit)
 
         user_ids = [row["user_id"] for row in top_data]
         usernames = await self._fetch_usernames(guild_id, user_ids)
@@ -351,14 +351,14 @@ class RankCommand(Command):
                 return None
 
             # 判断用户被创次数是否大于min_limit
-            num_chuang = dao.get_user_chuang_time(user_id, guild_id)
+            num_chuang = dao.chuang.get_user_count(user_id, guild_id)
             if num_chuang < min_limit:
                 return f"本榜单仅统计被创次数大于等于{min_limit}次的用户，当前用户被创次数为{num_chuang}次！"
 
-            avg_distance = dao.get_user_chuang_average(user_id, guild_id)
+            avg_distance = dao.chuang.get_user_average(user_id, guild_id)
             # 这里avg_distance一定是有效的
 
-            rank = dao.get_avg_distance_rank_cur_guild(
+            rank = dao.chuang.get_average_rank(
                 avg_distance, guild_id, min_limit
             )
 
@@ -382,7 +382,7 @@ class RankCommand(Command):
         guild_id = message.guild_id
         user_id = message.author.id
 
-        top_data = dao.get_chuang_times_rank_cur_guild(guild_id, 10)
+        top_data = dao.chuang.get_count_top(guild_id, 10)
 
         user_ids = [row["user_id"] for row in top_data]
         usernames = await self._fetch_usernames(guild_id, user_ids)
@@ -398,9 +398,9 @@ class RankCommand(Command):
             if any(row["user_id"] == user_id for row in top_data):
                 return None
 
-            times = dao.get_user_chuang_time(user_id, guild_id)
+            times = dao.chuang.get_user_count(user_id, guild_id)
 
-            rank = dao.get_user_chuang_times_rank_cur_guild(times, guild_id)
+            rank = dao.chuang.get_count_rank(times, guild_id)
 
             return f"{rank}. {message.author.username}: {times}"
 
