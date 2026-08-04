@@ -19,7 +19,7 @@ class UserHistory(Command):
         user = filtered_users[0]
         user_id = user.id
 
-        history_names = get_dao().get_user_history_nicknames(user_id, message.guild_id)
+        history_names = get_dao().command_records.get_user_history(user_id, message.guild_id)
 
         result = f"<@!{user_id}>的曾用昵称:\n"
         result += "\n".join(history_names)
@@ -41,7 +41,7 @@ class WhoIsCommand(Command):
         guild_id = message.guild_id
 
         # 从command_records表中查询包含该关键词的用户
-        users = get_dao().get_user_by_nickname_like_in_records(nickname_keyword, guild_id)
+        users = get_dao().command_records.find_users_by_nickname(nickname_keyword, guild_id)
 
         if not users:
             await self.send_reply(message, f"找不到包含'{nickname_keyword}'的昵称")
@@ -68,4 +68,3 @@ class WhoIsCommand(Command):
             except Exception:
                 result[uid] = "未知用户"
         return result
-        

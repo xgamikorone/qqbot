@@ -424,7 +424,7 @@ class RankCommand(Command):
         dao = get_dao()
         guild_id = message.guild_id
 
-        top_data = dao.get_command_counts_cur_guild(guild_id)[:10]
+        top_data = dao.command_records.get_command_counts(guild_id)[:10]
 
         def render_row(rank: int, row: dict) -> str:
             command_name = _command_name_to_formal_name.get(
@@ -471,7 +471,7 @@ class RankCommand(Command):
                 username = user.username
 
         guild_id = message.guild_id
-        top_data = dao.get_user_command_counts_cur_guild(user_id, guild_id)[:10]
+        top_data = dao.command_records.get_user_counts(user_id, guild_id)[:10]
 
         def render_row(rank: int, row: dict) -> str:
             command_name = _command_name_to_formal_name.get(
@@ -505,7 +505,7 @@ class RankCommand(Command):
         dao = get_dao()
         guild_id = message.guild_id
         user_id = message.author.id
-        top_data = dao.get_command_counts_per_user_cur_guild(command_name, guild_id)[
+        top_data = dao.command_records.get_command_users(command_name, guild_id)[
             :10
         ]
         user_ids = [row["user_id"] for row in top_data]
@@ -522,21 +522,14 @@ class RankCommand(Command):
             if any(row["user_id"] == user_id for row in top_data):
                 return None
 
-            data = dao.get_command_counts_by_user_cur_guild(
+            count = dao.command_records.get_user_command_count(
                 command_name, user_id, guild_id
             )
-
-            if not data:
+            if count == 0:
                 return None
-
-            count = data.get("count", 0)
-
-            data = dao.get_command_counts_rank_by_user_cur_guild(
+            rank = dao.command_records.get_command_user_rank(
                 command_name, guild_id, count
             )
-            if not data:
-                return None
-            rank = data.get("greater_count", 0) + 1
 
             user = await self.client.api.get_guild_member(guild_id, user_id)
             return f"{rank}. " f"{user['nick']}: " f"{count}次"

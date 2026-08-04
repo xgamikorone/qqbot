@@ -17,7 +17,7 @@ class StatsCommand(Command):
 
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
-        result = dao.get_command_counts_cur_guild(message.guild_id)
+        result = dao.command_records.get_command_counts(message.guild_id)
         if not result:
             await self.send_reply(message, "获取命令次数统计失败，稍后再试试吧！")
             return
@@ -44,7 +44,7 @@ class HisStatsCommand(Command):
         dao = get_dao()
         res_str = ""
         for u in filtered_users:
-            result = dao.get_user_command_counts_cur_guild(u.id, message.guild_id)
+            result = dao.command_records.get_user_counts(u.id, message.guild_id)
             result = result[:10]
             res_str += f"用户{u.username}的命令的使用次数统计:\n"
             res_str += "\n".join([f"{_command_name_to_formal_name.get(r['command_name'], r['command_name'])}: {r['count']}" for r in result])
@@ -62,7 +62,7 @@ class CommandUserStatsCommand(Command):
     async def execute(self, message: Message, args: List[str]):
         command_name = args[0]
         dao = get_dao()
-        result = dao.get_command_counts_per_user_cur_guild(command_name, message.guild_id)
+        result = dao.command_records.get_command_users(command_name, message.guild_id)
         if not result:
             await self.send_reply(message, f"命令{command_name}没有被任何用户使用过！")
             return

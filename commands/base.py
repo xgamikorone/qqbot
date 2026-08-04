@@ -84,7 +84,7 @@ class Command(ABC):
         """将命令执行结果添加到数据库"""
 
         dao = get_dao()
-        dao.add_command_record(
+        dao.command_records.record(
             message_id=message.id,
             channel_id=message.channel_id,
             guild_id=message.guild_id,
