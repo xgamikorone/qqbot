@@ -6,6 +6,7 @@ from botpy import logging
 from typing import List
 import asyncio
 from textwrap import dedent
+from .help_catalog import CommandHelp
 from .api import (
     ErrorCode,
     get_last_session_id,
@@ -607,6 +608,32 @@ class RevenueHelpCommand(Command):
     """数据相关命令的帮助"""
 
     name = "stats_help"
+    cn_name = "数据帮助"
+    help = CommandHelp(
+        title="数据",
+        category="直播数据",
+        summary="查询直播营收、SC、舰长和弹幕记录",
+        details=revenue_help_str,
+        lookup_names=(
+            "数据",
+            "查营收",
+            "营收",
+            "revenue",
+            "查SC",
+            "SC",
+            "super_chat",
+            "查用户SC",
+            "用户SC",
+            "user_sc",
+            "user_super_chat",
+            "查用户舰长",
+            "用户舰长",
+            "user_guards",
+            "查用户弹幕",
+            "用户弹幕",
+            "user_danmus",
+        ),
+    )
 
     async def execute(self, message: Message, args: List[str]):
 

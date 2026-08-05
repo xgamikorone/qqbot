@@ -6,6 +6,7 @@ from botpy import logging
 from typing import List
 from textwrap import dedent
 from .utils import ALLOWED_CHANNELS
+from .help_catalog import CommandHelp
 
 _log = logging.get_logger()
 
@@ -194,6 +195,25 @@ class NicknameHelpCommand(Command):
     """关于昵称的帮助"""
     name = "nickname_help"
     cn_name = "昵称帮助"
+    help = CommandHelp(
+        title="昵称",
+        category="数据管理",
+        summary="管理 B 站用户 uid 与频道昵称的对应关系",
+        details=nickname_help_str,
+        lookup_names=(
+            "昵称",
+            "加昵称",
+            "add_nickname",
+            "所有昵称",
+            "all_nicknames",
+            "查昵称",
+            "check_nickname",
+            "查uid",
+            "check_uid",
+            "删昵称",
+            "delete_nickname",
+        ),
+    )
     async def execute(self, message: Message, args: List[str]):
         
         await self.send_reply(message, nickname_help_str)

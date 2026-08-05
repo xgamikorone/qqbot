@@ -2,6 +2,7 @@ from textwrap import dedent
 
 import aiohttp
 from .base import command, Command
+from .help_catalog import CommandHelp
 from botpy.message import Message
 from typing import List
 from botpy import logging
@@ -26,6 +27,13 @@ birthday_template = dedent("""\
 class BirthdayCommand(Command):
     name = "birthday"
     cn_name = "生日快乐"
+    help = CommandHelp(
+        title="生日快乐",
+        category="娱乐",
+        summary="生成一条生日祝福",
+        usage="/生日快乐 <过生日的人> [送祝福的人]",
+        examples=("/生日快乐 又一", "/生日快乐 又一 丸子"),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         if not args:

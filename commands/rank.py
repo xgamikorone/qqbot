@@ -14,6 +14,7 @@ from dao import get_dao
 from botpy.message import Message
 from botpy import logging
 from textwrap import dedent
+from .help_catalog import CommandHelp
 
 _log = logging.get_logger()
 
@@ -75,6 +76,12 @@ rank_help_str = dedent(
 class RankCommand(Command):
     name = "rank"
     cn_name = "排行榜"
+    help = CommandHelp(
+        title="排行榜",
+        category="直播数据",
+        summary="查看指定类型和时间范围的排行榜",
+        details=rank_help_str,
+    )
 
     # =====================================================
     # 入口

@@ -1,6 +1,7 @@
 import asyncio
 import re
 from .base import command, Command
+from .help_catalog import CommandHelp
 from botpy.message import Message
 from typing import List
 from botpy import logging
@@ -14,6 +15,17 @@ class EmojiCommand(Command):
 
     name = "emoji"
     cn_name = "贴表情"
+    help = CommandHelp(
+        title="表情",
+        category="工具",
+        summary="在当前消息或引用消息下贴表情",
+        usage="/贴表情 <表情序号或具体表情>",
+        examples=(
+            "直接 @丸子bot：在当前消息下贴表情",
+            "引用消息后 @丸子bot：在引用消息下贴表情",
+        ),
+        lookup_names=("表情",),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         _log.info(f"Emoji command received: {message.content}")

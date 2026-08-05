@@ -5,6 +5,7 @@ import re
 import uuid
 from commands.utils import is_admin, convert_str_to_date
 from .base import command, Command
+from .help_catalog import CommandHelp
 from dao import get_dao
 from botpy.message import Message
 from botpy import logging
@@ -282,6 +283,12 @@ async def send_wife_card(command: Command, message: Message, wife: dict, title: 
 class WifeCommand(Command):
     name = "wife"
     cn_name = "来个老婆"
+    help = CommandHelp(
+        title="来个老婆",
+        category="娱乐",
+        summary="每日获得一位随机老婆",
+        usage="/来个老婆",
+    )
 
     async def execute(self, message: Message, args: List[str]):
 
@@ -340,6 +347,13 @@ class WifeCommand(Command):
 class MyWifeCommand(Command):
     name = "my_wife"
     cn_name = "我的老婆"
+    help = CommandHelp(
+        title="我的老婆",
+        category="娱乐",
+        summary="查看指定日期获得的老婆",
+        usage="/我的老婆 <日期>",
+        examples=("/我的老婆 昨天", "/我的老婆 2024-06-01"),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
@@ -589,6 +603,13 @@ class UpdateWifeCommand(Command):
 class WifeRefreshTimeCommand(Command):
     name = "wife_refresh_time"
     cn_name = "老婆刷新时间"
+    help = CommandHelp(
+        title="老婆刷新时间",
+        category="娱乐",
+        summary="查看或设置每日老婆的刷新时间",
+        usage="/老婆刷新时间\n/设置老婆刷新时间 <HH:MM>",
+        examples=("/老婆刷新时间", "/设置老婆刷新时间 08:00"),
+    )
     owner_only = True
 
     async def execute(self, message: Message, args: List[str]):

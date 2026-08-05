@@ -5,6 +5,7 @@ from botpy.message import Message
 from botpy import logging, Client
 from dao import get_dao
 from .base import Command, _command_registry, command
+from .help_catalog import CommandHelp, HelpCatalog
 
 _log = logging.get_logger()
 
@@ -13,12 +14,21 @@ _log = logging.get_logger()
 class AllCommandsCommand(Command):
     name = "all_commands"
     cn_name = "所有命令"
+    help = CommandHelp(
+        title="所有命令",
+        category="系统",
+        summary="按分类查看可用功能",
+        usage="/所有命令",
+        show_in_overview=False,
+    )
 
     async def execute(self, message: Message, args: List[str]):
-        """列出所有可用命令"""
-        res_str = f"所有可用命令如下:\n"
-        res_str += "\n".join(f"/{cmd}" for cmd in _command_registry)
-        await self.send_reply(message, res_str)
+        """按分类列出已提供帮助信息的命令。"""
+        include_owner = get_dao().owners.contains(message.author.id)
+        await self.send_reply(
+            message,
+            HelpCatalog(_command_registry).render(include_owner=include_owner),
+        )
 
 
 class CommandManager:

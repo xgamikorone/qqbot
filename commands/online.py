@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 from textwrap import dedent
+from .help_catalog import CommandHelp
 
 import aiohttp
 
@@ -133,6 +134,13 @@ online_help_str = dedent("""\
 class OnlineHelpCommand(Command):
     name = "online_help"
     cn_name = "同接帮助"
+    help = CommandHelp(
+        title="同接",
+        category="直播数据",
+        summary="查看当前直播的同接人数",
+        details=online_help_str,
+        lookup_names=("同接", "看谁", "高能", "gn"),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         await self.send_reply(message, online_help_str)

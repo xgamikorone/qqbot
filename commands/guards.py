@@ -19,6 +19,7 @@ from typing import List
 from botpy import logging
 from .categories import categories
 from .tags import tags_map
+from .help_catalog import CommandHelp
 
 
 _log = logging.get_logger()
@@ -120,6 +121,13 @@ guards_help_str = dedent(
 class GuardsHelpCommand(Command):
     name = "guards_help"
     cn_name = "舰长帮助"
+    help = CommandHelp(
+        title="舰长",
+        category="直播数据",
+        summary="查看指定分类或主播的当前舰长数",
+        details=guards_help_str,
+        lookup_names=("舰长", "num_guards"),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         await self.send_reply(message, guards_help_str)
@@ -213,6 +221,13 @@ followers_help_str = dedent(
 class FollowersHelpCommand(Command):
     name = "followers_help"
     cn_name = "粉丝帮助"
+    help = CommandHelp(
+        title="粉丝",
+        category="直播数据",
+        summary="查看指定分类或主播的当前粉丝数",
+        details=followers_help_str,
+        lookup_names=("粉丝", "followers"),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         await self.send_reply(message, followers_help_str)

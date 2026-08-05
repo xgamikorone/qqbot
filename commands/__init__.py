@@ -6,6 +6,7 @@ from . import (
     # channel_info,
     # update_channel,
     revenue,
+    revenue_rank,
     emoji,
     nickname, 
     # chat,

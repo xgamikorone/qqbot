@@ -4,6 +4,7 @@ import platform
 import re
 from datetime import datetime
 from textwrap import dedent
+from .help_catalog import CommandHelp
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -685,6 +686,13 @@ revenue_rank_help_str = dedent(
 class RevenueRankHelpCommand(Command):
     name = "revenue_rank_help"
     cn_name = "斗虫帮助"
+    help = CommandHelp(
+        title="斗虫",
+        category="直播数据",
+        summary="对比多位主播的营收数据",
+        details=revenue_rank_help_str,
+        lookup_names=("斗虫", "revenue_rank"),
+    )
 
     async def execute(self, message: Message, args: List[str]):
         await self.send_reply(message, revenue_rank_help_str)

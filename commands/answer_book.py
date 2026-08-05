@@ -1,6 +1,7 @@
 import random
 from typing import List
 from textwrap import dedent
+from .help_catalog import CommandHelp
 from botpy.message import Message
 from botpy import logging
 from .base import command, Command, cooldown
@@ -44,6 +45,13 @@ answer_book_help_str = dedent("""\
 class AnswerBookHelpCommand(Command):
     name = "answer_book_help"
     cn_name = "答案之书帮助"
+    help = CommandHelp(
+        title="答案之书",
+        category="娱乐",
+        summary="向答案之书提问",
+        details=answer_book_help_str,
+        lookup_names=("答案之书", "answer_book"),
+    )
     async def execute(self, message: Message, args: List[str]):
         # _log.info(f"Executing {self.name} command with args {args}")
         await self.send_reply(message, answer_book_help_str)
