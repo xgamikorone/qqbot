@@ -6,6 +6,7 @@ from botpy import logging
 from dao import get_dao
 from collections import defaultdict
 from utils.time_utils import beijing_now
+from .help_catalog import CommandHelp
 
 _command_registry: Dict[str, Type["Command"]] = {}
 _log = logging.get_logger(__name__)
@@ -55,6 +56,8 @@ class Command(ABC):
     name = "base"
     cn_name = "基础命令"
     owner_only = False
+    hidden = False
+    help: CommandHelp | None = None
 
     def __init__(self, client: Client):
         self.client = client
