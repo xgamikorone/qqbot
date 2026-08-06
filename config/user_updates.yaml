@@ -1,0 +1,9 @@
+# Record only changes worth communicating to users. Use audience: internal for
+# maintenance notes that must never appear in the bot's recent-update command.
+updates:
+  - published_at: "2026-08-06"
+    title: 帮助与更新体验
+    audience: user
+    changes:
+      - 新增 /最近更新 命令，可查看最近一次面向用户的功能变化。
+      - /帮助 现在支持按分类浏览、别名查询和相近命令建议。
