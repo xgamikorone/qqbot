@@ -2,6 +2,7 @@ from .base import command, Command, _command_registry, _command_name_to_formal_n
 from .manager import CommandManager
 from . import (
     helps,
+    updates,
     repeat,
     # channel_info,
     # update_channel,
