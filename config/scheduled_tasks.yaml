@@ -1,0 +1,17 @@
+timezone: Asia/Shanghai
+
+tasks:
+  sync_default_nicknames:
+    enabled: true
+    schedule:
+      hour: 4
+      minute: 0
+
+  send_fans_and_guards_message:
+    enabled: true
+    schedule:
+      hour: 23
+      minute: 55
+    parameters:
+      channel_id: "8338248"
+      category: wan
