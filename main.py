@@ -24,13 +24,23 @@ class MyClient(botpy.Client):
         super().__init__(*args, **kwargs)
         self.cmd_manager = CommandManager(self)
         self.task_scheduler = TaskScheduler()
-        self.task_scheduler.register_all(build_scheduled_tasks())
+        self.task_scheduler.register_all(
+            build_scheduled_tasks(message_sender=self._send_scheduled_message)
+        )
         print(list(self.cmd_manager.commands.keys()))
         print(commands._command_name_to_formal_name)
 
     async def on_ready(self):
         if self.task_scheduler.start():
             _log.info("调度器已启动")
+
+    async def _send_scheduled_message(self, channel_id: str, content: str) -> None:
+        await self.api.post_message(channel_id=channel_id, content=content)
+        _log.info(
+            "已发送定时消息到 %s，长度 %d",
+            channel_id,
+            len(content),
+        )
 
     async def on_at_message_create(self, message: Message):
         print(message.content)
