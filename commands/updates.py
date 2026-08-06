@@ -11,7 +11,7 @@ from .help_catalog import CommandHelp
 _log = logging.get_logger(__name__)
 
 
-@command("最近更新", "最新更新", "更新日志", "whats_new")
+@command("最近更新", "最新更新", "更新日志", "whats_new", "u", "update")
 class RecentUpdatesCommand(Command):
     name = "recent_updates"
     cn_name = "最近更新"
