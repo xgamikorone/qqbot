@@ -1,10 +1,14 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
-from scheduled_jobs import build_scheduled_tasks, generate_fans_and_guards_message
+from scheduled_jobs import (
+    TASK_BUILDERS,
+    build_scheduled_tasks,
+    generate_fans_and_guards_message,
+)
 from scheduled_task_config import ScheduledTasksConfig, TaskConfig
-from task_scheduler import CronSchedule
+from task_scheduler import CronSchedule, ScheduledTask
 
 
 def make_config(tasks: dict[str, TaskConfig]) -> ScheduledTasksConfig:
@@ -65,6 +69,33 @@ class ScheduledJobsTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "unknown parameters"):
             build_scheduled_tasks(unknown_parameter)
+
+    def test_delegates_enabled_tasks_to_registered_factory(self):
+        sender = AsyncMock()
+        task_config = make_task_config()
+        config = make_config({"custom": task_config})
+        built_task = ScheduledTask(
+            id="custom",
+            description="custom task",
+            callback=lambda: None,
+            schedule=task_config.schedule,
+        )
+        builder = Mock(return_value=built_task)
+
+        with patch.dict(TASK_BUILDERS, {"custom": builder}, clear=True):
+            tasks = build_scheduled_tasks(config, message_sender=sender)
+
+        self.assertEqual((built_task,), tasks)
+        builder.assert_called_once()
+        passed_config, dependencies = builder.call_args.args
+        self.assertIs(task_config, passed_config)
+        self.assertIs(sender, dependencies.message_sender)
+
+        builder.reset_mock()
+        disabled = make_config({"custom": make_task_config(enabled=False)})
+        with patch.dict(TASK_BUILDERS, {"custom": builder}, clear=True):
+            self.assertEqual((), build_scheduled_tasks(disabled))
+        builder.assert_not_called()
 
 
 class ScheduledMessageJobTests(unittest.IsolatedAsyncioTestCase):
