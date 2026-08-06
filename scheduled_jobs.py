@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from add_default_nicknames import add_default_nicknames
 from commands.api import get_num_followers, get_num_guards, get_user_info_by_uids
@@ -8,73 +9,11 @@ from task_scheduler import ScheduledTask
 
 
 MessageSender = Callable[[str, str], Awaitable[None]]
-SUPPORTED_TASK_IDS = {
-    "sync_default_nicknames",
-    "send_fans_and_guards_message",
-}
 
 
-def build_scheduled_tasks(
-    config: ScheduledTasksConfig,
-    *,
-    message_sender: MessageSender | None = None,
-) -> tuple[ScheduledTask, ...]:
-    """将已验证的配置绑定到代码中明确允许的任务回调。"""
-
-    unknown_task_ids = set(config.tasks) - SUPPORTED_TASK_IDS
-    if unknown_task_ids:
-        names = ", ".join(sorted(unknown_task_ids))
-        raise ValueError(f"unknown scheduled task IDs: {names}")
-
-    tasks = []
-    nickname_config = config.tasks.get("sync_default_nicknames")
-    if nickname_config is not None:
-        _reject_unknown_parameters(
-            "sync_default_nicknames", nickname_config, allowed=set()
-        )
-        if nickname_config.enabled:
-            tasks.append(
-                ScheduledTask(
-                    id="sync_default_nicknames",
-                    description="同步主播默认昵称到数据库",
-                    callback=add_default_nicknames,
-                    schedule=nickname_config.schedule,
-                )
-            )
-
-    message_config = config.tasks.get("send_fans_and_guards_message")
-    if message_config is not None:
-        _reject_unknown_parameters(
-            "send_fans_and_guards_message",
-            message_config,
-            allowed={"channel_id", "category"},
-        )
-        if message_config.enabled:
-            if message_sender is None:
-                raise ValueError(
-                    "message_sender is required for send_fans_and_guards_message"
-                )
-            channel_id = _require_string_parameter(
-                "send_fans_and_guards_message", message_config, "channel_id"
-            )
-            category = _require_string_parameter(
-                "send_fans_and_guards_message", message_config, "category"
-            )
-
-            async def send_fans_and_guards_message() -> None:
-                content = await generate_fans_and_guards_message(category)
-                await message_sender(channel_id, content)
-
-            tasks.append(
-                ScheduledTask(
-                    id="send_fans_and_guards_message",
-                    description="定时发送粉丝数和舰长数测试消息",
-                    callback=send_fans_and_guards_message,
-                    schedule=message_config.schedule,
-                )
-            )
-
-    return tuple(tasks)
+@dataclass(frozen=True)
+class TaskDependencies:
+    message_sender: MessageSender | None = None
 
 
 async def generate_fans_and_guards_message(category: str = "wan") -> str:
@@ -127,6 +66,74 @@ async def generate_fans_and_guards_message(category: str = "wan") -> str:
         + "\n".join(guards_lines)
         + f"\n\n对比时间: {record_time}"
     )
+
+
+def _build_nickname_sync(
+    config: TaskConfig, dependencies: TaskDependencies
+) -> ScheduledTask:
+    _reject_unknown_parameters("sync_default_nicknames", config, allowed=set())
+    return ScheduledTask(
+        id="sync_default_nicknames",
+        description="同步主播默认昵称到数据库",
+        callback=add_default_nicknames,
+        schedule=config.schedule,
+    )
+
+
+def _build_fans_and_guards_message(
+    config: TaskConfig, dependencies: TaskDependencies
+) -> ScheduledTask:
+    task_id = "send_fans_and_guards_message"
+    _reject_unknown_parameters(
+        task_id,
+        config,
+        allowed={"channel_id", "category"},
+    )
+    sender = dependencies.message_sender
+    if sender is None:
+        raise ValueError(f"message_sender is required for {task_id}")
+
+    channel_id = _require_string_parameter(task_id, config, "channel_id")
+    category = _require_string_parameter(task_id, config, "category")
+
+    async def execute() -> None:
+        content = await generate_fans_and_guards_message(category)
+        await sender(channel_id, content)
+
+    return ScheduledTask(
+        id=task_id,
+        description="定时发送粉丝数和舰长数测试消息",
+        callback=execute,
+        schedule=config.schedule,
+    )
+
+
+TaskBuilder = Callable[[TaskConfig, TaskDependencies], ScheduledTask]
+TASK_BUILDERS: dict[str, TaskBuilder] = {
+    "sync_default_nicknames": _build_nickname_sync,
+    "send_fans_and_guards_message": _build_fans_and_guards_message,
+}
+
+
+def build_scheduled_tasks(
+    config: ScheduledTasksConfig,
+    *,
+    message_sender: MessageSender | None = None,
+) -> tuple[ScheduledTask, ...]:
+    """将已验证的配置绑定到代码中明确注册的任务工厂。"""
+
+    dependencies = TaskDependencies(message_sender=message_sender)
+    tasks = []
+    for task_id, task_config in config.tasks.items():
+        try:
+            builder = TASK_BUILDERS[task_id]
+        except KeyError as error:
+            raise ValueError(f"unknown scheduled task IDs: {task_id}") from error
+
+        if task_config.enabled:
+            tasks.append(builder(task_config, dependencies))
+
+    return tuple(tasks)
 
 
 def _reject_unknown_parameters(
