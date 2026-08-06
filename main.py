@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import commands
 from commands import CommandManager
 from scheduled_jobs import build_scheduled_tasks
+from scheduled_task_config import load_scheduled_tasks_config
 from task_scheduler import TaskScheduler
 
 _log = logging.get_logger()
@@ -23,9 +24,15 @@ class MyClient(botpy.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cmd_manager = CommandManager(self)
-        self.task_scheduler = TaskScheduler()
+        self.scheduled_task_config = load_scheduled_tasks_config()
+        self.task_scheduler = TaskScheduler(
+            timezone=self.scheduled_task_config.timezone
+        )
         self.task_scheduler.register_all(
-            build_scheduled_tasks(message_sender=self._send_scheduled_message)
+            build_scheduled_tasks(
+                self.scheduled_task_config,
+                message_sender=self._send_scheduled_message,
+            )
         )
         print(list(self.cmd_manager.commands.keys()))
         print(commands._command_name_to_formal_name)
