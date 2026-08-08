@@ -98,6 +98,15 @@ class TaskSchedulerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(["sync", "async"], calls)
 
+    async def test_run_task_executes_an_unregistered_task(self):
+        calls = []
+        task = make_task("manual", lambda: calls.append("manual"))
+
+        await self.scheduler.run_task(task)
+
+        self.assertEqual(["manual"], calls)
+        self.assertEqual((), self.scheduler.list_tasks())
+
     async def test_run_now_propagates_failure_and_unknown_task(self):
         def fail():
             raise RuntimeError("boom")
