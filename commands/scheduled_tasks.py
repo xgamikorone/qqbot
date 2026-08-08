@@ -22,7 +22,7 @@ class RunScheduledTaskCommand(Command):
         usage="/测试定时任务 [任务 ID]",
         examples=(
             "/测试定时任务",
-            "/测试定时任务 sync_default_nicknames",
+            "/测试定时任务 daily_maintenance_report",
         ),
         details=(
             "测试定时任务\n"

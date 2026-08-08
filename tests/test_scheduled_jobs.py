@@ -30,11 +30,11 @@ def make_task_config(
 
 
 class ScheduledJobsTests(unittest.TestCase):
-    def test_builds_nickname_sync_from_typed_config(self):
+    def test_builds_daily_maintenance_report_from_typed_config(self):
         sender = AsyncMock()
         config = make_config(
             {
-                "sync_default_nicknames": make_task_config(
+                "daily_maintenance_report": make_task_config(
                     hour=6,
                     minute=15,
                     parameters={"channel_id": "channel-1"},
@@ -45,13 +45,13 @@ class ScheduledJobsTests(unittest.TestCase):
         tasks = build_scheduled_tasks(config, message_sender=sender)
 
         self.assertEqual(1, len(tasks))
-        self.assertEqual("sync_default_nicknames", tasks[0].id)
+        self.assertEqual("daily_maintenance_report", tasks[0].id)
         self.assertEqual(6, tasks[0].schedule.hour)
         self.assertEqual(15, tasks[0].schedule.minute)
 
     def test_disabled_or_absent_tasks_are_not_built(self):
         disabled_config = make_config(
-            {"sync_default_nicknames": make_task_config(enabled=False)}
+            {"daily_maintenance_report": make_task_config(enabled=False)}
         )
 
         self.assertEqual((), build_scheduled_tasks(disabled_config))
@@ -64,7 +64,7 @@ class ScheduledJobsTests(unittest.TestCase):
 
         unknown_parameter = make_config(
             {
-                "sync_default_nicknames": make_task_config(
+                "daily_maintenance_report": make_task_config(
                     parameters={"callback": "module.function"}
                 )
             }

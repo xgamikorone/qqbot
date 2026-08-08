@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from add_default_nicknames import add_default_nicknames
 from commands.api import get_num_followers, get_num_guards, get_user_info_by_uids
 from commands.categories import categories
+from daily_usage_report import build_yesterday_usage_report
 from live_monitor_client import LiveMonitorError, check_live_monitor_health
 from scheduled_task_config import ScheduledTasksConfig, TaskConfig
 from task_scheduler import ScheduledTask
@@ -69,14 +70,14 @@ async def generate_fans_and_guards_message(category: str = "wan") -> str:
     )
 
 
-def _build_nickname_sync(
+def _build_daily_maintenance_report(
     config: TaskConfig, dependencies: TaskDependencies
 ) -> ScheduledTask:
-    task_id = "sync_default_nicknames"
+    task_id = "daily_maintenance_report"
     _reject_unknown_parameters(
         task_id,
         config,
-        allowed={"channel_id", "max_age_seconds"},
+        allowed={"channel_id", "max_age_seconds", "usage_top_limit"},
     )
     sender = dependencies.message_sender
     if sender is None:
@@ -90,6 +91,14 @@ def _build_nickname_sync(
         default=30,
         minimum=5,
         maximum=300,
+    )
+    usage_top_limit = _optional_int_parameter(
+        task_id,
+        config,
+        "usage_top_limit",
+        default=5,
+        minimum=1,
+        maximum=10,
     )
 
     async def execute() -> None:
@@ -113,7 +122,22 @@ def _build_nickname_sync(
             failures.append("Live Monitor 健康检查")
             health_result = "Live Monitor：检查失败，请查看程序日志"
 
-        content = "定时任务执行结果\n\n" + nickname_result + "\n\n" + health_result
+        try:
+            usage_result = build_yesterday_usage_report(
+                limit=usage_top_limit
+            ).render()
+        except Exception:
+            failures.append("昨日使用统计")
+            usage_result = "昨日 Bot 使用总结：生成失败，请查看程序日志"
+
+        content = (
+            "每日维护与使用汇报\n\n"
+            + nickname_result
+            + "\n\n"
+            + health_result
+            + "\n\n"
+            + usage_result
+        )
         await sender(channel_id, content)
 
         if failures:
@@ -122,7 +146,7 @@ def _build_nickname_sync(
 
     return ScheduledTask(
         id=task_id,
-        description="同步主播默认昵称并检查 Live Monitor",
+        description="每日维护与使用汇报",
         callback=execute,
         schedule=config.schedule,
     )
@@ -158,7 +182,7 @@ def _build_fans_and_guards_message(
 
 TaskBuilder = Callable[[TaskConfig, TaskDependencies], ScheduledTask]
 TASK_BUILDERS: dict[str, TaskBuilder] = {
-    "sync_default_nicknames": _build_nickname_sync,
+    "daily_maintenance_report": _build_daily_maintenance_report,
     "send_fans_and_guards_message": _build_fans_and_guards_message,
 }
 

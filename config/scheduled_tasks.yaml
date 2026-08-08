@@ -1,7 +1,7 @@
 timezone: Asia/Shanghai
 
 tasks:
-  sync_default_nicknames:
+  daily_maintenance_report:
     enabled: true
     schedule:
       hour: 2
@@ -9,6 +9,7 @@ tasks:
     parameters:
       channel_id: "3702137"
       max_age_seconds: 30
+      usage_top_limit: 5
 
   send_fans_and_guards_message:
     enabled: true

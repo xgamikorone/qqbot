@@ -16,7 +16,7 @@ class ScheduledTaskConfigTests(unittest.TestCase):
 
         self.assertEqual("Asia/Shanghai", str(config.timezone))
         self.assertEqual(
-            {"sync_default_nicknames", "send_fans_and_guards_message"},
+            {"daily_maintenance_report", "send_fans_and_guards_message"},
             set(config.tasks),
         )
         message_task = config.tasks["send_fans_and_guards_message"]
@@ -27,7 +27,7 @@ class ScheduledTaskConfigTests(unittest.TestCase):
         content = """\
 timezone: UTC
 tasks:
-  sync_default_nicknames:
+  daily_maintenance_report:
     enabled: false
     schedule:
       hour: 1
@@ -41,8 +41,8 @@ tasks:
                 config = load_scheduled_tasks_config()
 
         self.assertEqual("UTC", str(config.timezone))
-        self.assertFalse(config.tasks["sync_default_nicknames"].enabled)
-        self.assertEqual(0, config.tasks["sync_default_nicknames"].schedule.minute)
+        self.assertFalse(config.tasks["daily_maintenance_report"].enabled)
+        self.assertEqual(0, config.tasks["daily_maintenance_report"].schedule.minute)
 
     def test_rejects_unknown_fields_and_invalid_values(self):
         invalid_configs = {
