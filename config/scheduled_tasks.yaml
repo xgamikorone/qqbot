@@ -4,10 +4,10 @@ tasks:
   sync_default_nicknames:
     enabled: true
     schedule:
-      hour: 10
-      minute: 22
+      hour: 2
+      minute: 0
     parameters:
-      channel_id: "723086974"
+      channel_id: "3702137"
       max_age_seconds: 30
 
   send_fans_and_guards_message:
