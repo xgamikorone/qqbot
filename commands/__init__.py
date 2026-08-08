@@ -24,6 +24,7 @@ from . import (
     test,
     create,
     current_time,
+    scheduled_tasks,
     bv,
     user_history,
     real_id,
