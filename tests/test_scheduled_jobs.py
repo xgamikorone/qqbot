@@ -31,16 +31,18 @@ def make_task_config(
 
 class ScheduledJobsTests(unittest.TestCase):
     def test_builds_nickname_sync_from_typed_config(self):
+        sender = AsyncMock()
         config = make_config(
             {
                 "sync_default_nicknames": make_task_config(
                     hour=6,
                     minute=15,
+                    parameters={"channel_id": "channel-1"},
                 )
             }
         )
 
-        tasks = build_scheduled_tasks(config)
+        tasks = build_scheduled_tasks(config, message_sender=sender)
 
         self.assertEqual(1, len(tasks))
         self.assertEqual("sync_default_nicknames", tasks[0].id)
