@@ -6,6 +6,9 @@ tasks:
     schedule:
       hour: 4
       minute: 0
+    parameters:
+      channel_id: "8338248"
+      max_age_seconds: 30
 
   send_fans_and_guards_message:
     enabled: true

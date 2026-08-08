@@ -4,7 +4,7 @@ from . import (
     helps,
     updates,
     repeat,
-    # channel_info,
+    channel_info,
     # update_channel,
     revenue,
     revenue_rank,

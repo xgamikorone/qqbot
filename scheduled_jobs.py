@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from add_default_nicknames import add_default_nicknames
 from commands.api import get_num_followers, get_num_guards, get_user_info_by_uids
 from commands.categories import categories
+from live_monitor_client import LiveMonitorError, check_live_monitor_health
 from scheduled_task_config import ScheduledTasksConfig, TaskConfig
 from task_scheduler import ScheduledTask
 
@@ -71,11 +72,58 @@ async def generate_fans_and_guards_message(category: str = "wan") -> str:
 def _build_nickname_sync(
     config: TaskConfig, dependencies: TaskDependencies
 ) -> ScheduledTask:
-    _reject_unknown_parameters("sync_default_nicknames", config, allowed=set())
+    task_id = "sync_default_nicknames"
+    _reject_unknown_parameters(
+        task_id,
+        config,
+        allowed={"channel_id", "max_age_seconds"},
+    )
+    sender = dependencies.message_sender
+    if sender is None:
+        raise ValueError(f"message_sender is required for {task_id}")
+
+    channel_id = _require_string_parameter(task_id, config, "channel_id")
+    max_age_seconds = _optional_int_parameter(
+        task_id,
+        config,
+        "max_age_seconds",
+        default=30,
+        minimum=5,
+        maximum=300,
+    )
+
+    async def execute() -> None:
+        failures: list[str] = []
+        try:
+            added_count = await add_default_nicknames()
+            nickname_result = f"默认昵称同步：成功，新增 {added_count} 个昵称"
+        except Exception:
+            failures.append("默认昵称同步")
+            nickname_result = "默认昵称同步：失败，请查看程序日志"
+
+        try:
+            health = await check_live_monitor_health(max_age_seconds)
+            health_result = health.render()
+            if not health.healthy:
+                failures.append("Live Monitor 健康检查")
+        except LiveMonitorError as error:
+            failures.append("Live Monitor 健康检查")
+            health_result = f"Live Monitor：检查失败（{error}）"
+        except Exception:
+            failures.append("Live Monitor 健康检查")
+            health_result = "Live Monitor：检查失败，请查看程序日志"
+
+        content = "定时任务执行结果\n\n" + nickname_result + "\n\n" + health_result
+        await sender(channel_id, content)
+
+        if failures:
+            failed_steps = "、".join(failures)
+            raise RuntimeError(f"scheduled task steps failed: {failed_steps}")
+
     return ScheduledTask(
-        id="sync_default_nicknames",
-        description="同步主播默认昵称到数据库",
-        callback=add_default_nicknames,
+        id=task_id,
+        description="同步主播默认昵称并检查 Live Monitor",
+        callback=execute,
         schedule=config.schedule,
     )
 
@@ -154,3 +202,25 @@ def _require_string_parameter(
             f"scheduled task {task_id}.{parameter_name} must be a non-empty string"
         )
     return value.strip()
+
+
+def _optional_int_parameter(
+    task_id: str,
+    task_config: TaskConfig,
+    parameter_name: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    value = task_config.parameters.get(parameter_name, default)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not minimum <= value <= maximum
+    ):
+        raise ValueError(
+            f"scheduled task {task_id}.{parameter_name} must be an integer "
+            f"between {minimum} and {maximum}"
+        )
+    return value
