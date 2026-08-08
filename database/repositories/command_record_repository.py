@@ -1,11 +1,33 @@
 import logging
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
 
 from utils.time_utils import beijing_now_str
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class UsageCount:
+    name: str
+    count: int
+
+
+@dataclass(frozen=True)
+class UserUsageCount:
+    user_id: str
+    user_name: str
+    count: int
+
+
+@dataclass(frozen=True)
+class CommandUsageSummary:
+    total_commands: int
+    unique_users: int
+    top_commands: tuple[UsageCount, ...]
+    top_users: tuple[UserUsageCount, ...]
 
 
 class CommandRecordRepository:
@@ -95,3 +117,72 @@ class CommandRecordRepository:
             (user_id, guild_id),
         ).fetchall()
         return [row["user_name"] for row in rows if row["user_name"]]
+
+    def get_usage_summary(
+        self,
+        *,
+        start_at: str,
+        end_at: str,
+        limit: int = 5,
+    ) -> CommandUsageSummary:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+
+        totals = self.conn.execute(
+            """
+            SELECT COUNT(*) AS total_commands,
+                   COUNT(DISTINCT user_id) AS unique_users
+            FROM command_records
+            WHERE created_at >= ? AND created_at < ?
+            """,
+            (start_at, end_at),
+        ).fetchone()
+        command_rows = self.conn.execute(
+            """
+            SELECT command_name, COUNT(*) AS count
+            FROM command_records
+            WHERE created_at >= ? AND created_at < ?
+            GROUP BY command_name
+            ORDER BY count DESC, command_name
+            LIMIT ?
+            """,
+            (start_at, end_at, limit),
+        ).fetchall()
+        user_rows = self.conn.execute(
+            """
+            SELECT records.user_id,
+                   COALESCE((
+                       SELECT latest.user_name
+                       FROM command_records AS latest
+                       WHERE latest.user_id = records.user_id
+                         AND latest.created_at >= ?
+                         AND latest.created_at < ?
+                       ORDER BY latest.created_at DESC, latest.id DESC
+                       LIMIT 1
+                   ), '') AS user_name,
+                   COUNT(*) AS count
+            FROM command_records AS records
+            WHERE records.created_at >= ? AND records.created_at < ?
+            GROUP BY records.user_id
+            ORDER BY count DESC, records.user_id
+            LIMIT ?
+            """,
+            (start_at, end_at, start_at, end_at, limit),
+        ).fetchall()
+
+        return CommandUsageSummary(
+            total_commands=totals["total_commands"] if totals else 0,
+            unique_users=totals["unique_users"] if totals else 0,
+            top_commands=tuple(
+                UsageCount(name=row["command_name"], count=row["count"])
+                for row in command_rows
+            ),
+            top_users=tuple(
+                UserUsageCount(
+                    user_id=row["user_id"],
+                    user_name=row["user_name"],
+                    count=row["count"],
+                )
+                for row in user_rows
+            ),
+        )
