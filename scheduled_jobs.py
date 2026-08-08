@@ -1,11 +1,13 @@
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, replace
+from typing import Any
 
 from add_default_nicknames import add_default_nicknames
 from commands.api import get_num_followers, get_num_guards, get_user_info_by_uids
 from commands.categories import categories
 from daily_usage_report import build_yesterday_usage_report
 from live_monitor_client import LiveMonitorError, check_live_monitor_health
+from scheduled_task_errors import ScheduledTaskParameterError
 from scheduled_task_config import ScheduledTasksConfig, TaskConfig
 from task_scheduler import ScheduledTask
 
@@ -185,6 +187,55 @@ TASK_BUILDERS: dict[str, TaskBuilder] = {
     "daily_maintenance_report": _build_daily_maintenance_report,
     "send_fans_and_guards_message": _build_fans_and_guards_message,
 }
+
+_MANUAL_PARAMETER_OVERRIDES: dict[str, frozenset[str]] = {
+    "daily_maintenance_report": frozenset(
+        {"max_age_seconds", "usage_top_limit"}
+    ),
+    "send_fans_and_guards_message": frozenset({"category"}),
+}
+
+
+def build_manual_scheduled_task(
+    config: ScheduledTasksConfig,
+    task_id: str,
+    *,
+    message_sender: MessageSender | None = None,
+    parameter_overrides: Mapping[str, Any] | None = None,
+) -> ScheduledTask:
+    """使用受限参数覆盖重新构建一个已配置的任务，供管理员手动执行。"""
+
+    try:
+        task_config = config.tasks[task_id]
+        builder = TASK_BUILDERS[task_id]
+    except KeyError as error:
+        raise ScheduledTaskParameterError(
+            f"unknown scheduled task ID: {task_id}"
+        ) from error
+    if not task_config.enabled:
+        raise ScheduledTaskParameterError(f"scheduled task is disabled: {task_id}")
+
+    overrides = dict(parameter_overrides or {})
+    allowed = _MANUAL_PARAMETER_OVERRIDES.get(task_id, frozenset())
+    forbidden = set(overrides) - allowed
+    if forbidden:
+        names = ", ".join(sorted(forbidden))
+        raise ScheduledTaskParameterError(
+            f"parameters cannot be overridden manually for {task_id}: {names}"
+        )
+
+    if overrides:
+        task_config = replace(
+            task_config,
+            parameters={**task_config.parameters, **overrides},
+        )
+    try:
+        return builder(
+            task_config,
+            TaskDependencies(message_sender=message_sender),
+        )
+    except ValueError as error:
+        raise ScheduledTaskParameterError(str(error)) from error
 
 
 def build_scheduled_tasks(
