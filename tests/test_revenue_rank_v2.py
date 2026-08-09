@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 
 from utils.revenue_rank_v2 import (
+    format_month_label,
     merge_realtime_revenue,
     normalize_realtime_revenue,
     parse_revenue_period_args,
@@ -9,6 +10,21 @@ from utils.revenue_rank_v2 import (
 
 
 class RevenueRankV2Test(unittest.TestCase):
+    def test_formats_months_as_compact_ranges(self):
+        self.assertEqual("2026年08月", format_month_label(("202608",)))
+        self.assertEqual(
+            "2026年06月–08月",
+            format_month_label(("202606", "202607", "202608")),
+        )
+        self.assertEqual(
+            "2025年11月–2026年02月",
+            format_month_label(("202511", "202512", "202601", "202602")),
+        )
+        self.assertEqual(
+            "2026年01月–03月（共2个月）",
+            format_month_label(("202601", "202603")),
+        )
+
     def test_defaults_to_current_month_and_top_twenty(self):
         now = datetime(2026, 8, 9, 16, 30, 0)
         options = parse_revenue_period_args([], now=now)
