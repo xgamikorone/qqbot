@@ -100,9 +100,10 @@ def draw_realtime_revenue_table(
     for column in ["总收入", "礼物", "上舰", "SC"]:
         table_frame[column] = table_frame[column].map(lambda value: f"{value:,.1f}")
 
-    figure_height = max(4.2, 2.3 + len(table_frame) * 0.58)
+    figure_height = max(3.8, 1.7 + len(table_frame) * 0.52)
     figure, axis = plt.subplots(figsize=(12, figure_height))
     figure.patch.set_facecolor("#F7FAFE")
+    figure.subplots_adjust(left=0.02, right=0.98, bottom=0.075, top=0.84)
     axis.axis("off")
     table = axis.table(
         cellText=table_frame.values,
@@ -110,7 +111,7 @@ def draw_realtime_revenue_table(
         loc="upper center",
         cellLoc="center",
         colLoc="center",
-        bbox=[0.02, 0.10, 0.96, 0.78],
+        bbox=[0, 0, 1, 1],
     )
     table.auto_set_font_size(False)
     table.set_fontsize(14)
@@ -151,7 +152,7 @@ def draw_realtime_revenue_table(
     period = format_month_label(options.months)
     figure.text(
         0.5,
-        0.955,
+        0.975,
         "斗虫 v2 · 实时营收排行榜",
         ha="center",
         va="top",
@@ -162,7 +163,7 @@ def draw_realtime_revenue_table(
     )
     figure.text(
         0.5,
-        0.895,
+        0.915,
         f"{period}  |  分类：{options.tag.upper()}  |  数据截至 {options.end_time:%m-%d %H:%M}",
         ha="center",
         va="top",
@@ -172,7 +173,7 @@ def draw_realtime_revenue_table(
     )
     figure.text(
         0.025,
-        0.045,
+        0.025,
         "注：本排行榜仅统计直播期间的营收",
         ha="left",
         va="bottom",
@@ -182,7 +183,7 @@ def draw_realtime_revenue_table(
     )
     figure.text(
         0.975,
-        0.045,
+        0.025,
         "制图：丸子bot",
         ha="right",
         va="bottom",
