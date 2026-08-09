@@ -8,6 +8,7 @@ from . import (
     # update_channel,
     revenue,
     revenue_rank,
+    revenue_rank_v2,
     emoji,
     nickname, 
     # chat,
