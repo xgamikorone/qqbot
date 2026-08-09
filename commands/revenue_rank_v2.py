@@ -21,6 +21,7 @@ from utils.revenue_rank_v2 import (
 
 from .base import Command, command, cooldown
 from .help_catalog import CommandHelp
+from .tags import tags_map
 
 
 load_dotenv()
@@ -38,6 +39,7 @@ TABLE_FONT = (
 async def _fetch_realtime_revenue_once(
     start_time: datetime,
     end_time: datetime,
+    tag_id: int,
 ) -> Any | None:
     base_url = os.getenv("LIVE_MONITOR_BASE_URL", "").strip().rstrip("/")
     token = os.getenv("LIVE_MONITOR_API_TOKEN", "").strip()
@@ -48,6 +50,7 @@ async def _fetch_realtime_revenue_once(
     params = {
         "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
         "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "tag_id": tag_id,
     }
     timeout = aiohttp.ClientTimeout(total=30, connect=10)
     try:
@@ -65,10 +68,10 @@ async def _fetch_realtime_revenue_once(
 
 
 async def fetch_realtime_revenue(
-    start_time: datetime, end_time: datetime
+    start_time: datetime, end_time: datetime, tag_id: int
 ) -> Any | None:
     return await retry_empty(
-        lambda: _fetch_realtime_revenue_once(start_time, end_time),
+        lambda: _fetch_realtime_revenue_once(start_time, end_time, tag_id),
         max_attempts=3,
         retry_delay=1,
         on_retry=lambda attempt, total: _log.warning(
@@ -120,7 +123,7 @@ def draw_realtime_revenue_table(
         elif row_index % 2 == 0:
             cell.set_facecolor("#f5f5f5")
 
-    period = ", ".join(options.months)
+    period = f"{', '.join(options.months)} | tag: {options.tag}"
     axis.set_title(
         f"斗虫 v2 实时营收排行榜\n{period}",
         fontproperties=TABLE_FONT,
@@ -149,13 +152,14 @@ class RevenueRankV2Command(Command):
         details=(
             "默认查询本月。月份支持 YYYYMM、逗号分隔、连续区间，"
             "以及本月/上月/今年/去年/近N个月等时间词。"
+            f"分类支持：{', '.join(tags_map)}；默认 vr。"
         ),
-        usage="/斗虫v2 [/m 月份] [/n 数量]",
+        usage="/斗虫v2 [/f 分类] [/m 月份] [/n 数量]",
         examples=(
             "/斗虫v2",
-            "/斗虫v2 /m 202608 /n 20",
-            "/斗虫v2 /m 202606-202608 /n 10",
-            "/斗虫v2 /m 今年 /n 20",
+            "/斗虫v2 /f psp /m 202608 /n 20",
+            "/斗虫v2 /f vr /m 202606-202608 /n 10",
+            "/斗虫v2 /f wan /m 今年 /n 20",
         ),
         lookup_names=("斗虫v2", "revenue_rank_v2"),
     )
@@ -168,9 +172,20 @@ class RevenueRankV2Command(Command):
             await self.send_reply(message, f"参数错误：{error}\n输入 /帮助 斗虫v2 查看用法。")
             return
 
+        if options.tag not in tags_map:
+            await self.send_reply(
+                message,
+                f"分类错误：{options.tag}\n可用分类：{', '.join(tags_map)}",
+            )
+            return
+        tag_id = tags_map[options.tag]
+
         await self.send_reply(message, "正在获取实时营收并生成斗虫 v2 排行榜，请稍候……")
         payloads = await asyncio.gather(
-            *(fetch_realtime_revenue(start, end) for start, end in options.periods)
+            *(
+                fetch_realtime_revenue(start, end, tag_id)
+                for start, end in options.periods
+            )
         )
         rows = merge_realtime_revenue(payloads, options.top_n)
         if not rows:

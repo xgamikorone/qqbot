@@ -10,6 +10,7 @@ class RevenuePeriodOptions:
     months: tuple[str, ...]
     periods: tuple[tuple[datetime, datetime], ...]
     top_n: int
+    tag: str
 
     @property
     def start_time(self) -> datetime:
@@ -109,11 +110,12 @@ def parse_revenue_period_args(
     now = now or datetime.now()
     months = [now.strftime("%Y%m")]
     top_n = 20
+    tag = "vr"
 
     index = 0
     while index < len(args):
         flag = args[index].lower()
-        if flag not in {"/m", "/n"} or index + 1 >= len(args):
+        if flag not in {"/m", "/n", "/f"} or index + 1 >= len(args):
             raise ValueError(f"未知或缺少参数: {args[index]}")
         value = args[index + 1]
         if flag == "/m":
@@ -121,6 +123,8 @@ def parse_revenue_period_args(
             if parsed_months is None:
                 raise ValueError("月份格式错误")
             months = parsed_months
+        elif flag == "/f":
+            tag = value.lower()
         else:
             if not value.isdigit() or not 1 <= int(value) <= 100:
                 raise ValueError("显示数量必须是 1-100 的整数")
@@ -128,7 +132,7 @@ def parse_revenue_period_args(
         index += 2
 
     periods = tuple(_period_for_month(month, now) for month in months)
-    return RevenuePeriodOptions(tuple(months), periods, top_n)
+    return RevenuePeriodOptions(tuple(months), periods, top_n, tag)
 
 
 def normalize_realtime_revenue(payload: Any, top_n: int) -> list[dict[str, Any]]:
