@@ -16,6 +16,7 @@ class RevenueRankV2Test(unittest.TestCase):
         self.assertEqual(now, options.end_time)
         self.assertEqual(("202608",), options.months)
         self.assertEqual(20, options.top_n)
+        self.assertEqual("vr", options.tag)
 
     def test_parses_month_range_and_top_n(self):
         options = parse_revenue_period_args(
@@ -35,6 +36,12 @@ class RevenueRankV2Test(unittest.TestCase):
         )
         self.assertEqual(("202601", "202603"), options.months)
         self.assertEqual(2, len(options.periods))
+
+    def test_parses_tag_filter(self):
+        options = parse_revenue_period_args(
+            ["/f", "psp", "/m", "202608"], now=datetime(2026, 8, 9)
+        )
+        self.assertEqual("psp", options.tag)
 
     def test_normalizes_sorts_and_limits_rows(self):
         payload = [
