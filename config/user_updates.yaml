@@ -1,6 +1,15 @@
 # Record only changes worth communicating to users. Use audience: internal for
 # maintenance notes that must never appear in the bot's recent-update command.
 updates:
+  - published_at: "2026-08-09"
+    title: 斗虫v2 实时营收排行
+    audience: user
+    changes:
+      - 新增 /斗虫v2 命令，可按主播分类查看实时营收排行榜，默认查询本月 VR 分类。
+      - 支持通过 /f 选择分类、/m 指定单月或多个月份、/n 设置榜单人数；多月数据会自动合并统计。
+      - 优化排行榜图片样式，突出总收入和前三名，并标明统计口径、数据时间与制图信息。
+      - 输入 /帮助 斗虫v2 可查看完整用法和示例。
+
   - published_at: "2026-08-06"
     title: 帮助与更新体验
     audience: user
