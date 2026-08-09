@@ -6,6 +6,7 @@ from utils.revenue_rank_v2 import (
     merge_realtime_revenue,
     normalize_realtime_revenue,
     parse_revenue_period_args,
+    resolve_revenue_tag_id,
 )
 
 
@@ -58,6 +59,13 @@ class RevenueRankV2Test(unittest.TestCase):
             ["/f", "psp", "/m", "202608"], now=datetime(2026, 8, 9)
         )
         self.assertEqual("psp", options.tag)
+
+    def test_parses_all_tag_filter(self):
+        options = parse_revenue_period_args(
+            ["/f", "all"], now=datetime(2026, 8, 9)
+        )
+        self.assertEqual("all", options.tag)
+        self.assertEqual(0, resolve_revenue_tag_id(options.tag, {"vr": 6}))
 
     def test_normalizes_sorts_and_limits_rows(self):
         payload = [
