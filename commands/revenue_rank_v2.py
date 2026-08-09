@@ -90,14 +90,14 @@ def draw_realtime_revenue_table(
         [
             "rank",
             "name",
+            "total_income",
             "gift_income",
             "guard_income",
             "super_chat_income",
-            "total_income",
         ]
     ].copy()
-    table_frame.columns = ["排名", "主播", "礼物", "上舰", "SC", "总收入"]
-    for column in ["礼物", "上舰", "SC", "总收入"]:
+    table_frame.columns = ["排名", "主播", "总收入", "礼物", "上舰", "SC"]
+    for column in ["总收入", "礼物", "上舰", "SC"]:
         table_frame[column] = table_frame[column].map(lambda value: f"{value:,.1f}")
 
     figure_height = max(4.2, 2.3 + len(table_frame) * 0.58)
@@ -132,7 +132,7 @@ def draw_realtime_revenue_table(
                 cell.set_text_props(ha="left", fontproperties=TABLE_FONT)
             elif column_index in numeric_columns:
                 cell.set_text_props(ha="right", fontproperties=TABLE_FONT)
-            if column_index == 5:
+            if column_index == 2:
                 cell.set_text_props(
                     ha="right", weight="bold", color="#102A56", fontproperties=TABLE_FONT
                 )
