@@ -148,11 +148,9 @@ class RevenueRankV2Command(Command):
     help = CommandHelp(
         title="斗虫v2",
         category="直播数据",
-        summary="查看指定时间段的实时营收排行榜",
-        details=(
-            "默认查询本月。月份支持 YYYYMM、逗号分隔、连续区间，"
-            "以及本月/上月/今年/去年/近N个月等时间词。"
-            f"分类支持：{', '.join(tags_map)}；默认 vr。"
+        summary=(
+            "查看指定月份及分类的实时营收排行榜；默认本月和 vr，"
+            "月份支持 YYYYMM、逗号分隔、连续区间及常用时间词"
         ),
         usage="/斗虫v2 [/f 分类] [/m 月份] [/n 数量]",
         examples=(
