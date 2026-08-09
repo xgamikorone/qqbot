@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 from utils.async_retry import retry_empty
 from utils.revenue_rank_v2 import (
     RevenuePeriodOptions,
-    format_month_label,
+    format_revenue_period_label,
     merge_realtime_revenue,
     parse_revenue_period_args,
     resolve_revenue_tag_id,
@@ -151,7 +151,7 @@ def draw_realtime_revenue_table(
                     }
                 )
 
-    period = format_month_label(options.months)
+    period = format_revenue_period_label(options)
     figure.text(
         0.5,
         0.975,
@@ -211,16 +211,18 @@ class RevenueRankV2Command(Command):
         title="斗虫v2",
         category="直播数据",
         summary=(
-            "查看指定月份及分类的实时营收排行榜；默认本月和 vr，"
-            "月份支持 YYYYMM、逗号分隔、连续区间及常用时间词；"
+            "查看指定日期、月份及分类的实时营收排行榜；默认本月和 vr，"
+            "支持按月或按天查询；"
             f"分类支持：{', '.join(REVENUE_TAG_NAMES)}"
         ),
-        usage="/斗虫v2 [/f 分类] [/m 月份] [/n 数量]",
+        usage="/斗虫v2 [/f 分类] [/m 月份 | /d 日期] [/n 数量]",
         examples=(
             "/斗虫v2",
             "/斗虫v2 /f psp /m 202608 /n 20",
             "/斗虫v2 /f vr /m 202606-202608 /n 10",
             "/斗虫v2 /f wan /m 今年 /n 20",
+            "/斗虫v2 /d 今天",
+            "/斗虫v2 /f all /d 8-5到8-9 /n 20",
         ),
         lookup_names=("斗虫v2", "revenue_rank_v2"),
     )

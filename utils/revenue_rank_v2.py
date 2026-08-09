@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from calendar import monthrange
-from datetime import datetime, time
+from datetime import date, datetime, time, timedelta
 import re
 from typing import Any
 
@@ -11,6 +11,7 @@ class RevenuePeriodOptions:
     periods: tuple[tuple[datetime, datetime], ...]
     top_n: int
     tag: str
+    day_range: tuple[date, date] | None = None
 
     @property
     def start_time(self) -> datetime:
@@ -70,6 +71,46 @@ def format_month_label(months: tuple[str, ...]) -> str:
     if ordered_months != _month_range(start_month, end_month):
         label += f"（共{len(ordered_months)}个月）"
     return label
+
+
+def format_revenue_period_label(options: RevenuePeriodOptions) -> str:
+    if options.day_range is None:
+        return format_month_label(options.months)
+
+    start_date, end_date = options.day_range
+    if start_date == end_date:
+        return f"{start_date:%Y年%m月%d日}"
+    if start_date.year == end_date.year and start_date.month == end_date.month:
+        return f"{start_date:%Y年%m月%d日}–{end_date:%d日}"
+    if start_date.year == end_date.year:
+        return f"{start_date:%Y年%m月%d日}–{end_date:%m月%d日}"
+    return f"{start_date:%Y年%m月%d日}–{end_date:%Y年%m月%d日}"
+
+
+def _parse_date(value: str, now: datetime) -> date:
+    for fmt in ("%Y-%m-%d", "%m-%d"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            return parsed.date() if fmt == "%Y-%m-%d" else parsed.replace(year=now.year).date()
+        except ValueError:
+            continue
+    raise ValueError(f"日期格式错误: {value}")
+
+
+def _parse_day_range(value: str, now: datetime) -> tuple[date, date]:
+    value = value.strip()
+    if value in {"今天", "今日"}:
+        return now.date(), now.date()
+    if value in {"昨天", "昨日"}:
+        yesterday = now.date() - timedelta(days=1)
+        return yesterday, yesterday
+
+    parts = re.split(r"(?:到|至|~)", value, maxsplit=1)
+    start_date = _parse_date(parts[0].strip(), now)
+    end_date = _parse_date(parts[1].strip(), now) if len(parts) == 2 else start_date
+    if start_date > end_date:
+        raise ValueError("开始日期不能晚于结束日期")
+    return start_date, end_date
 
 
 def _parse_months(value: str, now: datetime) -> list[str] | None:
@@ -141,18 +182,29 @@ def parse_revenue_period_args(
     months = [now.strftime("%Y%m")]
     top_n = 20
     tag = "vr"
+    day_range = None
+    month_selected = False
+    day_selected = False
 
     index = 0
     while index < len(args):
         flag = args[index].lower()
-        if flag not in {"/m", "/n", "/f"} or index + 1 >= len(args):
+        if flag not in {"/m", "/d", "/n", "/f"} or index + 1 >= len(args):
             raise ValueError(f"未知或缺少参数: {args[index]}")
         value = args[index + 1]
         if flag == "/m":
+            if day_selected:
+                raise ValueError("/m 和 /d 不能同时使用")
             parsed_months = _parse_months(value, now)
             if parsed_months is None:
                 raise ValueError("月份格式错误")
             months = parsed_months
+            month_selected = True
+        elif flag == "/d":
+            if month_selected:
+                raise ValueError("/m 和 /d 不能同时使用")
+            day_range = _parse_day_range(value, now)
+            day_selected = True
         elif flag == "/f":
             tag = value.lower()
         else:
@@ -161,8 +213,20 @@ def parse_revenue_period_args(
             top_n = int(value)
         index += 2
 
-    periods = tuple(_period_for_month(month, now) for month in months)
-    return RevenuePeriodOptions(tuple(months), periods, top_n, tag)
+    if day_range is None:
+        periods = tuple(_period_for_month(month, now) for month in months)
+        return RevenuePeriodOptions(tuple(months), periods, top_n, tag)
+
+    start_date, end_date = day_range
+    start_time = datetime.combine(start_date, time.min)
+    end_time = (
+        now.replace(microsecond=0)
+        if end_date == now.date()
+        else datetime.combine(end_date, time.max).replace(microsecond=0)
+    )
+    return RevenuePeriodOptions(
+        (), ((start_time, end_time),), top_n, tag, day_range=day_range
+    )
 
 
 def normalize_realtime_revenue(payload: Any, top_n: int) -> list[dict[str, Any]]:
