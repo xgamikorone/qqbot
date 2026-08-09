@@ -99,8 +99,9 @@ def draw_realtime_revenue_table(
     for column in ["礼物", "上舰", "SC", "总收入"]:
         table_frame[column] = table_frame[column].map(lambda value: f"{value:,.1f}")
 
-    figure_height = max(3.5, 1.8 + len(table_frame) * 0.58)
+    figure_height = max(4.2, 2.3 + len(table_frame) * 0.58)
     figure, axis = plt.subplots(figsize=(12, figure_height))
+    figure.patch.set_facecolor("#F7FAFE")
     axis.axis("off")
     table = axis.table(
         cellText=table_frame.values,
@@ -108,28 +109,87 @@ def draw_realtime_revenue_table(
         loc="upper center",
         cellLoc="center",
         colLoc="center",
-        bbox=[0, 0, 1, 0.93],
+        bbox=[0.02, 0.10, 0.96, 0.78],
     )
     table.auto_set_font_size(False)
     table.set_fontsize(14)
     table.scale(1.1, 1.4)
     table.auto_set_column_width(col=list(range(len(table_frame.columns))))
 
-    for (row_index, _), cell in table.get_celld().items():
-        cell.set_text_props(fontproperties=TABLE_FONT)
+    medal_colors = {1: "#F5B51B", 2: "#9EA4AA", 3: "#D78232"}
+    numeric_columns = {2, 3, 4, 5}
+    for (row_index, column_index), cell in table.get_celld().items():
+        cell.set_edgecolor("#D8E4F2")
+        cell.set_linewidth(0.8)
+        cell.set_text_props(color="#17233D", fontproperties=TABLE_FONT)
         if row_index == 0:
-            cell.set_facecolor("#00BFFF")
+            cell.set_facecolor("#2F80ED")
             cell.set_text_props(color="white", weight="bold", fontproperties=TABLE_FONT)
-        elif row_index % 2 == 0:
-            cell.set_facecolor("#f5f5f5")
+        else:
+            cell.set_facecolor("#FFFFFF" if row_index % 2 else "#F1F6FC")
+            if column_index == 1:
+                cell.set_text_props(ha="left", fontproperties=TABLE_FONT)
+            elif column_index in numeric_columns:
+                cell.set_text_props(ha="right", fontproperties=TABLE_FONT)
+            if column_index == 5:
+                cell.set_text_props(
+                    ha="right", weight="bold", color="#102A56", fontproperties=TABLE_FONT
+                )
+            if column_index == 0 and row_index in medal_colors:
+                text = cell.get_text()
+                text.set_color("white")
+                text.set_weight("bold")
+                text.set_bbox(
+                    {
+                        "boxstyle": "circle,pad=0.35",
+                        "facecolor": medal_colors[row_index],
+                        "edgecolor": "none",
+                    }
+                )
 
-    period = f"{', '.join(options.months)} | tag: {options.tag}"
-    axis.set_title(
-        f"斗虫 v2 实时营收排行榜\n{period}",
+    period = ", ".join(
+        f"{month[:4]}年{month[4:]}月" for month in options.months
+    )
+    figure.text(
+        0.5,
+        0.955,
+        "斗虫 v2 · 实时营收排行榜",
+        ha="center",
+        va="top",
         fontproperties=TABLE_FONT,
-        fontsize=18,
+        fontsize=22,
         fontweight="bold",
-        pad=12,
+        color="#102A56",
+    )
+    figure.text(
+        0.5,
+        0.895,
+        f"{period}  |  分类：{options.tag.upper()}  |  数据截至 {options.end_time:%m-%d %H:%M}",
+        ha="center",
+        va="top",
+        fontproperties=TABLE_FONT,
+        fontsize=12,
+        color="#52657D",
+    )
+    figure.text(
+        0.025,
+        0.045,
+        "注：本排行榜仅统计直播期间的营收",
+        ha="left",
+        va="bottom",
+        fontproperties=TABLE_FONT,
+        fontsize=10,
+        color="#6D7E91",
+    )
+    figure.text(
+        0.975,
+        0.045,
+        "制图：丸子bot",
+        ha="right",
+        va="bottom",
+        fontproperties=TABLE_FONT,
+        fontsize=10,
+        color="#6D7E91",
     )
 
     os.makedirs("imgs", exist_ok=True)
