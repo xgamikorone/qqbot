@@ -3,6 +3,7 @@ from datetime import datetime
 
 from utils.revenue_rank_v2 import (
     format_month_label,
+    format_revenue_period_label,
     merge_realtime_revenue,
     normalize_realtime_revenue,
     parse_revenue_period_args,
@@ -66,6 +67,36 @@ class RevenueRankV2Test(unittest.TestCase):
         )
         self.assertEqual("all", options.tag)
         self.assertEqual(0, resolve_revenue_tag_id(options.tag, {"vr": 6}))
+
+    def test_parses_today(self):
+        now = datetime(2026, 8, 9, 16, 30)
+        options = parse_revenue_period_args(["/d", "今天"], now=now)
+        self.assertEqual(datetime(2026, 8, 9), options.start_time)
+        self.assertEqual(now, options.end_time)
+        self.assertEqual("2026年08月09日", format_revenue_period_label(options))
+
+    def test_parses_yesterday(self):
+        options = parse_revenue_period_args(
+            ["/d", "昨天"], now=datetime(2026, 8, 9, 16, 30)
+        )
+        self.assertEqual(datetime(2026, 8, 8), options.start_time)
+        self.assertEqual(datetime(2026, 8, 8, 23, 59, 59), options.end_time)
+
+    def test_parses_short_day_range(self):
+        options = parse_revenue_period_args(
+            ["/d", "8-5到8-9"], now=datetime(2026, 8, 9, 16, 30)
+        )
+        self.assertEqual(datetime(2026, 8, 5), options.start_time)
+        self.assertEqual(datetime(2026, 8, 9, 16, 30), options.end_time)
+        self.assertEqual(
+            "2026年08月05日–09日", format_revenue_period_label(options)
+        )
+
+    def test_rejects_month_and_day_together(self):
+        with self.assertRaisesRegex(ValueError, "不能同时"):
+            parse_revenue_period_args(
+                ["/m", "202608", "/d", "今天"], now=datetime(2026, 8, 9)
+            )
 
     def test_normalizes_sorts_and_limits_rows(self):
         payload = [
