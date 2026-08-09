@@ -4,8 +4,8 @@ tasks:
   sync_default_nicknames:
     enabled: true
     schedule:
-      hour: 2
-      minute: 0
+      hour: 6
+      minute: 05
     parameters:
       channel_id: "3702137"
       max_age_seconds: 30

@@ -225,7 +225,7 @@ class RevenueRankV2Command(Command):
         lookup_names=("斗虫v2", "revenue_rank_v2"),
     )
 
-    @cooldown(60)
+    @cooldown(10)
     async def execute(self, message: Message, args: list[str]):
         try:
             options = parse_revenue_period_args(args)
