@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 from utils.async_retry import retry_empty
 from utils.revenue_rank_v2 import (
     RevenuePeriodOptions,
-    normalize_realtime_revenue,
+    merge_realtime_revenue,
     parse_revenue_period_args,
 )
 
@@ -36,7 +36,8 @@ TABLE_FONT = (
 
 
 async def _fetch_realtime_revenue_once(
-    options: RevenuePeriodOptions,
+    start_time: datetime,
+    end_time: datetime,
 ) -> Any | None:
     base_url = os.getenv("LIVE_MONITOR_BASE_URL", "").strip().rstrip("/")
     token = os.getenv("LIVE_MONITOR_API_TOKEN", "").strip()
@@ -45,8 +46,8 @@ async def _fetch_realtime_revenue_once(
         return None
 
     params = {
-        "start_time": options.start_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "end_time": options.end_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     timeout = aiohttp.ClientTimeout(total=30, connect=10)
     try:
@@ -63,9 +64,11 @@ async def _fetch_realtime_revenue_once(
         return None
 
 
-async def fetch_realtime_revenue(options: RevenuePeriodOptions) -> Any | None:
+async def fetch_realtime_revenue(
+    start_time: datetime, end_time: datetime
+) -> Any | None:
     return await retry_empty(
-        lambda: _fetch_realtime_revenue_once(options),
+        lambda: _fetch_realtime_revenue_once(start_time, end_time),
         max_attempts=3,
         retry_delay=1,
         on_retry=lambda attempt, total: _log.warning(
@@ -117,10 +120,7 @@ def draw_realtime_revenue_table(
         elif row_index % 2 == 0:
             cell.set_facecolor("#f5f5f5")
 
-    period = (
-        f"{options.start_time:%Y-%m-%d %H:%M:%S} ~ "
-        f"{options.end_time:%Y-%m-%d %H:%M:%S}"
-    )
+    period = ", ".join(options.months)
     axis.set_title(
         f"斗虫 v2 实时营收排行榜\n{period}",
         fontproperties=TABLE_FONT,
@@ -146,11 +146,16 @@ class RevenueRankV2Command(Command):
         title="斗虫v2",
         category="直播数据",
         summary="查看指定时间段的实时营收排行榜",
-        usage="/斗虫v2 [/s 开始时间] [/e 结束时间] [/n 数量]",
+        details=(
+            "默认查询本月。月份支持 YYYYMM、逗号分隔、连续区间，"
+            "以及本月/上月/今年/去年/近N个月等时间词。"
+        ),
+        usage="/斗虫v2 [/m 月份] [/n 数量]",
         examples=(
             "/斗虫v2",
-            "/斗虫v2 /s 2026-08-01 /e 2026-08-09 /n 20",
-            "/斗虫v2 /s 2026-08-09_12:00:00 /n 10",
+            "/斗虫v2 /m 202608 /n 20",
+            "/斗虫v2 /m 202606-202608 /n 10",
+            "/斗虫v2 /m 今年 /n 20",
         ),
         lookup_names=("斗虫v2", "revenue_rank_v2"),
     )
@@ -164,8 +169,10 @@ class RevenueRankV2Command(Command):
             return
 
         await self.send_reply(message, "正在获取实时营收并生成斗虫 v2 排行榜，请稍候……")
-        payload = await fetch_realtime_revenue(options)
-        rows = normalize_realtime_revenue(payload, options.top_n)
+        payloads = await asyncio.gather(
+            *(fetch_realtime_revenue(start, end) for start, end in options.periods)
+        )
+        rows = merge_realtime_revenue(payloads, options.top_n)
         if not rows:
             await self.send_reply(message, "未获取到营收数据，请稍后再试或调整时间范围。")
             return
