@@ -42,6 +42,28 @@ def _is_valid_month(value: str) -> bool:
     return value.isdigit() and len(value) == 6 and 1 <= int(value[4:]) <= 12
 
 
+def format_month_label(months: tuple[str, ...]) -> str:
+    ordered_months = sorted(set(months))
+    if not ordered_months:
+        return ""
+    if len(ordered_months) == 1:
+        month = ordered_months[0]
+        return f"{month[:4]}年{month[4:]}月"
+
+    start_month, end_month = ordered_months[0], ordered_months[-1]
+    if start_month[:4] == end_month[:4]:
+        label = f"{start_month[:4]}年{start_month[4:]}月–{end_month[4:]}月"
+    else:
+        label = (
+            f"{start_month[:4]}年{start_month[4:]}月–"
+            f"{end_month[:4]}年{end_month[4:]}月"
+        )
+
+    if ordered_months != _month_range(start_month, end_month):
+        label += f"（共{len(ordered_months)}个月）"
+    return label
+
+
 def _parse_months(value: str, now: datetime) -> list[str] | None:
     value = value.strip().lower()
     current_month = now.strftime("%Y%m")

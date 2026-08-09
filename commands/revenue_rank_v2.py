@@ -15,6 +15,7 @@ from matplotlib import pyplot as plt
 from utils.async_retry import retry_empty
 from utils.revenue_rank_v2 import (
     RevenuePeriodOptions,
+    format_month_label,
     merge_realtime_revenue,
     parse_revenue_period_args,
 )
@@ -147,9 +148,7 @@ def draw_realtime_revenue_table(
                     }
                 )
 
-    period = ", ".join(
-        f"{month[:4]}年{month[4:]}月" for month in options.months
-    )
+    period = format_month_label(options.months)
     figure.text(
         0.5,
         0.955,
