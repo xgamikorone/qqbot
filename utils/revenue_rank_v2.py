@@ -21,6 +21,14 @@ class RevenuePeriodOptions:
         return self.periods[-1][1]
 
 
+def resolve_revenue_tag_id(tag: str, tag_map: dict[str, int]) -> int:
+    if tag == "all":
+        return 0
+    if tag not in tag_map:
+        raise ValueError(f"未知分类: {tag}")
+    return tag_map[tag]
+
+
 def _month_add(month: str, offset: int) -> str:
     year = int(month[:4])
     month_number = int(month[4:]) + offset

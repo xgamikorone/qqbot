@@ -18,6 +18,7 @@ from utils.revenue_rank_v2 import (
     format_month_label,
     merge_realtime_revenue,
     parse_revenue_period_args,
+    resolve_revenue_tag_id,
 )
 
 from .base import Command, command, cooldown
@@ -27,6 +28,7 @@ from .tags import tags_map
 
 load_dotenv()
 _log = logging.get_logger()
+REVENUE_TAG_NAMES = (*tags_map.keys(), "all")
 
 matplotlib.rcParams["axes.unicode_minus"] = False
 FONT_PATH = os.path.join("fonts", "simhei.ttf")
@@ -210,7 +212,8 @@ class RevenueRankV2Command(Command):
         category="直播数据",
         summary=(
             "查看指定月份及分类的实时营收排行榜；默认本月和 vr，"
-            "月份支持 YYYYMM、逗号分隔、连续区间及常用时间词"
+            "月份支持 YYYYMM、逗号分隔、连续区间及常用时间词；"
+            f"分类支持：{', '.join(REVENUE_TAG_NAMES)}"
         ),
         usage="/斗虫v2 [/f 分类] [/m 月份] [/n 数量]",
         examples=(
@@ -230,13 +233,14 @@ class RevenueRankV2Command(Command):
             await self.send_reply(message, f"参数错误：{error}\n输入 /帮助 斗虫v2 查看用法。")
             return
 
-        if options.tag not in tags_map:
+        try:
+            tag_id = resolve_revenue_tag_id(options.tag, tags_map)
+        except ValueError:
             await self.send_reply(
                 message,
-                f"分类错误：{options.tag}\n可用分类：{', '.join(tags_map)}",
+                f"分类错误：{options.tag}\n可用分类：{', '.join(REVENUE_TAG_NAMES)}",
             )
             return
-        tag_id = tags_map[options.tag]
 
         await self.send_reply(message, "正在获取实时营收并生成斗虫 v2 排行榜，请稍候……")
         payloads = await asyncio.gather(
