@@ -59,8 +59,8 @@ updates:
 
         self.assertIsNotNone(update)
         rendered = update.render()
-        self.assertTrue(rendered.startswith("最近更新 · 2026-08-06"))
-        self.assertIn("\n- 新增 /最近更新", rendered)
+        self.assertTrue(rendered.startswith("最近更新 · 2026-08-09"))
+        self.assertIn("\n- 新增 /斗虫v2", rendered)
 
     def test_rejects_invalid_update_entries(self):
         invalid_configs = {
