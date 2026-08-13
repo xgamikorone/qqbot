@@ -22,7 +22,7 @@ class MuteCommand(Command):
             await self.send_reply(message, "用法：/禁言 @用户 [时长(分钟)]")
             return
 
-        user_id_pattern = re.compile(r"<@(\d+)>")
+        user_id_pattern = re.compile(r"<@!(\d+)>")
         match = user_id_pattern.match(args[0])
         if not match:
             await self.send_reply(message, "请@想要禁言的用户")
