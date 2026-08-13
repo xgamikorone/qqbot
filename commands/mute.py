@@ -21,9 +21,10 @@ class MuteCommand(Command):
 
         user_id = args[0]
         duration = int(args[1]) if len(args) > 1 else 0
+        mute_end_timestamp = int(message.timestamp) + duration * 60 if duration > 0 else None
 
         # 调用禁言逻辑，这里假设有一个 mute_user 函数
-        success = await self.client.api.mute_member(message.guild_id, user_id, mute_seconds=str(duration * 60))
+        success = await self.client.api.mute_member(message.guild_id, user_id, mute_end_timestamp=str(mute_end_timestamp))
         if success:
             await self.send_reply(message, f"已禁言用户 {user_id} {duration} 分钟")
         else:
