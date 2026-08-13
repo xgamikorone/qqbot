@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from .base import command, Command
 from botpy.message import Message
@@ -21,7 +22,13 @@ class MuteCommand(Command):
             await self.send_reply(message, "用法：/禁言 @用户 [时长(分钟)]")
             return
 
-        user_id = args[0]
+        user_id_pattern = re.compile(r"<@(\d+)>")
+        match = user_id_pattern.match(args[0])
+        if not match:
+            await self.send_reply(message, "请@想要禁言的用户")
+            return
+
+        user_id = match.group(1)
         duration = int(args[1]) if len(args) > 1 else 0
         mute_end_timestamp = int(datetime.timestamp(datetime.now())) + duration * 60 if duration > 0 else None
 
