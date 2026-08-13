@@ -32,8 +32,5 @@ class MuteCommand(Command):
         duration = int(args[1]) if len(args) > 1 else 0
         mute_end_timestamp = int(datetime.timestamp(datetime.now())) + duration * 60 if duration > 0 else None
 
-        success = await self.client.api.mute_member(message.guild_id, user_id, mute_end_timestamp=str(mute_end_timestamp))
-        if success is None:
-            await self.send_reply(message, f"已禁言用户 {user_id} {duration} 分钟")
-        else:
-            await self.send_reply(message, f"禁言用户 {user_id} 失败")
+        await self.client.api.mute_member(message.guild_id, user_id, mute_end_timestamp=str(mute_end_timestamp))
+        return
