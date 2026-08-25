@@ -137,7 +137,16 @@ async def fetch_revenue_rank_cached(
 
     async with lock:
         for attempt in range(retry_attempts):
-            data = await fetch_remote(month, category)
+            try:
+                data = await fetch_remote(month, category)
+            except Exception as error:
+                _log.warning(
+                    "Revenue rank request failed for %s/%s: %s",
+                    month,
+                    category,
+                    error,
+                )
+                data = None
             if _is_valid_payload(data):
                 if not is_current_month:
                     try:

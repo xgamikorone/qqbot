@@ -93,6 +93,23 @@ class RevenueRankCacheTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("unavailable", result.source)
         self.assertIsNone(result.data)
 
+    async def test_remote_exception_falls_back_to_historical_cache(self):
+        self.cache.save("202607", "vr", self.payload)
+
+        async def fetch_remote(month, category):
+            raise RuntimeError("remote unavailable")
+
+        result = await fetch_revenue_rank_cached(
+            "202607",
+            "vr",
+            fetch_remote=fetch_remote,
+            cache=self.cache,
+            now=datetime(2026, 8, 25),
+            retry_delay=0,
+        )
+
+        self.assertEqual("cache", result.source)
+
 
 if __name__ == "__main__":
     unittest.main()

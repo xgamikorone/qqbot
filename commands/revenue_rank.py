@@ -18,6 +18,7 @@ from matplotlib import font_manager
 from matplotlib import pyplot as plt
 
 from commands.api import get_revenue_rank
+from utils.revenue_rank_cache import RevenueRankCache, fetch_revenue_rank_cached
 
 # from utils.image_client import AsyncShuimoImageClient
 
@@ -40,6 +41,7 @@ else:
 matplotlib.rcParams["axes.unicode_minus"] = False
 
 _log = logging.get_logger()
+_revenue_rank_cache = RevenueRankCache()
 
 
 url = "https://img.scdn.io/api/v1.php"
@@ -284,18 +286,17 @@ def merge_revenue_rank(monthly_data: List[Tuple[str, Dict[str, Any]]]) -> Dict[s
     }
 
 
-async def get_revenue_rank_with_retry(month: str, filter: str, retry: int = 3):
-    while retry > 0:
-        data = await get_revenue_rank(month, filter)
-        _log.info(f"Got revenue rank data for {month}")
-        if data is not None:
-            data["month"] = month
-            return data
-
-        retry -= 1
-        await asyncio.sleep(1)
-
-    return None
+async def get_revenue_rank_with_retry(month: str, filter: str):
+    result = await fetch_revenue_rank_cached(
+        month,
+        filter,
+        fetch_remote=get_revenue_rank,
+        cache=_revenue_rank_cache,
+    )
+    if result.data is not None:
+        result.data["month"] = month
+    _log.info(f"Got revenue rank data for {month} from {result.source}")
+    return result
 
 
 async def upload_image(
@@ -566,7 +567,9 @@ class RevenueRankCommand(Command):
             *[get_revenue_rank_with_retry(month, filter) for month in months]
         )
         monthly_data = [
-            (month, data) for month, data in zip(months, results) if data is not None
+            (month, result.data)
+            for month, result in zip(months, results)
+            if result.data is not None
         ]
 
         if not monthly_data or not any(
@@ -576,7 +579,14 @@ class RevenueRankCommand(Command):
             return
 
         failed_months = [
-            month for month, data in zip(months, results) if data is None
+            month
+            for month, result in zip(months, results)
+            if result.source == "unavailable"
+        ]
+        cached_months = [
+            (month, result.cached_at)
+            for month, result in zip(months, results)
+            if result.source == "cache"
         ]
         if len(monthly_data) == 1:
             data = monthly_data[0][1]
@@ -587,6 +597,16 @@ class RevenueRankCommand(Command):
         await self.send_reply(
             message,
             f"正在生成{data['month']} {filter}主播数据排行榜，请稍后……"
+            + (
+                "\n以下月份使用缓存数据: "
+                + ", ".join(
+                    f"{month}（{cached_at:%Y-%m-%d %H:%M}）"
+                    for month, cached_at in cached_months
+                    if cached_at is not None
+                )
+                if cached_months
+                else ""
+            )
             + (
                 f"\n以下月份获取失败，已跳过: {', '.join(failed_months)}"
                 if failed_months
