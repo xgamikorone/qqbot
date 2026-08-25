@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS command_records (
     command_args TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_command_records_created_at
+ON command_records(created_at);
+
 CREATE TABLE IF NOT EXISTS wife_urls (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT NOT NULL UNIQUE,

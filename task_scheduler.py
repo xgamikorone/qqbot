@@ -133,6 +133,9 @@ class TaskScheduler:
             task = self._tasks[task_id]
         except KeyError as error:
             raise KeyError(f"unknown scheduled task: {task_id}") from error
+        await self.run_task(task)
+
+    async def run_task(self, task: ScheduledTask) -> None:
         await self._execute(task)
 
     def shutdown(self, *, wait: bool = True) -> bool:

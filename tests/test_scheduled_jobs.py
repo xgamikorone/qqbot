@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from scheduled_jobs import (
     TASK_BUILDERS,
+    build_manual_scheduled_task,
     build_scheduled_tasks,
     generate_fans_and_guards_message,
 )
@@ -30,11 +31,11 @@ def make_task_config(
 
 
 class ScheduledJobsTests(unittest.TestCase):
-    def test_builds_nickname_sync_from_typed_config(self):
+    def test_builds_daily_maintenance_report_from_typed_config(self):
         sender = AsyncMock()
         config = make_config(
             {
-                "sync_default_nicknames": make_task_config(
+                "daily_maintenance_report": make_task_config(
                     hour=6,
                     minute=15,
                     parameters={"channel_id": "channel-1"},
@@ -45,13 +46,13 @@ class ScheduledJobsTests(unittest.TestCase):
         tasks = build_scheduled_tasks(config, message_sender=sender)
 
         self.assertEqual(1, len(tasks))
-        self.assertEqual("sync_default_nicknames", tasks[0].id)
+        self.assertEqual("daily_maintenance_report", tasks[0].id)
         self.assertEqual(6, tasks[0].schedule.hour)
         self.assertEqual(15, tasks[0].schedule.minute)
 
     def test_disabled_or_absent_tasks_are_not_built(self):
         disabled_config = make_config(
-            {"sync_default_nicknames": make_task_config(enabled=False)}
+            {"daily_maintenance_report": make_task_config(enabled=False)}
         )
 
         self.assertEqual((), build_scheduled_tasks(disabled_config))
@@ -64,13 +65,69 @@ class ScheduledJobsTests(unittest.TestCase):
 
         unknown_parameter = make_config(
             {
-                "sync_default_nicknames": make_task_config(
+                "daily_maintenance_report": make_task_config(
                     parameters={"callback": "module.function"}
                 )
             }
         )
         with self.assertRaisesRegex(ValueError, "unknown parameters"):
             build_scheduled_tasks(unknown_parameter)
+
+    def test_manual_builder_merges_only_allowed_parameter_overrides(self):
+        sender = AsyncMock()
+        task_config = make_task_config(
+            parameters={
+                "channel_id": "channel-1",
+                "max_age_seconds": 30,
+                "usage_top_limit": 5,
+            }
+        )
+        config = make_config({"daily_maintenance_report": task_config})
+        built_task = ScheduledTask(
+            id="daily_maintenance_report",
+            description="manual task",
+            callback=lambda: None,
+            schedule=task_config.schedule,
+        )
+        builder = Mock(return_value=built_task)
+
+        with patch.dict(
+            TASK_BUILDERS,
+            {"daily_maintenance_report": builder},
+            clear=False,
+        ):
+            result = build_manual_scheduled_task(
+                config,
+                "daily_maintenance_report",
+                message_sender=sender,
+                parameter_overrides={
+                    "max_age_seconds": 60,
+                    "usage_top_limit": 10,
+                },
+            )
+
+        self.assertIs(built_task, result)
+        passed_config, dependencies = builder.call_args.args
+        self.assertEqual("channel-1", passed_config.parameters["channel_id"])
+        self.assertEqual(60, passed_config.parameters["max_age_seconds"])
+        self.assertEqual(10, passed_config.parameters["usage_top_limit"])
+        self.assertIs(sender, dependencies.message_sender)
+
+        with self.assertRaisesRegex(ValueError, "cannot be overridden"):
+            build_manual_scheduled_task(
+                config,
+                "daily_maintenance_report",
+                message_sender=sender,
+                parameter_overrides={"channel_id": "another-channel"},
+            )
+
+        with self.assertRaisesRegex(ValueError, "max_age_seconds"):
+            build_manual_scheduled_task(
+                config,
+                "daily_maintenance_report",
+                message_sender=sender,
+                parameter_overrides={"max_age_seconds": 301},
+            )
 
     def test_delegates_enabled_tasks_to_registered_factory(self):
         sender = AsyncMock()

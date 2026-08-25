@@ -11,7 +11,10 @@ from dotenv import load_dotenv
 
 import commands
 from commands import CommandManager
-from scheduled_jobs import build_scheduled_tasks
+from scheduled_jobs import (
+    build_manual_scheduled_task,
+    build_scheduled_tasks,
+)
 from scheduled_task_config import load_scheduled_tasks_config
 from task_scheduler import TaskScheduler
 
@@ -48,6 +51,19 @@ class MyClient(botpy.Client):
             channel_id,
             len(content),
         )
+
+    async def run_scheduled_task(
+        self,
+        task_id: str,
+        parameter_overrides: dict[str, object] | None = None,
+    ) -> None:
+        task = build_manual_scheduled_task(
+            self.scheduled_task_config,
+            task_id,
+            message_sender=self._send_scheduled_message,
+            parameter_overrides=parameter_overrides,
+        )
+        await self.task_scheduler.run_task(task)
 
     async def on_at_message_create(self, message: Message):
         print(message.content)
