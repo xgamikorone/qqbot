@@ -8,6 +8,7 @@ replace_wife_urls.py
 *.sql
 user.db*
 sessions.json
+data/cache/
 *.log
 commands/wife.py
 imgs/wife_list_preview.jpg
