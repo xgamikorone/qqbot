@@ -10,6 +10,7 @@ PSP = 54
 ASOUL = 78
 A2 = 79
 EOE = 85
+TWINKLE_STAR = 92
 
 
 
@@ -24,4 +25,6 @@ tags_map = {
     "asoul": ASOUL,
     "a2": A2,
     "e": EOE,
+    "完美" :TWINKLE_STAR,
+    "t": TWINKLE_STAR,
 }
