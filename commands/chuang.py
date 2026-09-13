@@ -59,7 +59,7 @@ class ChuangCommand(Command):
         if today_row is not None:
             distance = today_row
         else:
-            distance = biased_random(power=3.0)
+            distance = biased_random(power=10.0)
 
             # 2️⃣ 查询历史最高纪录（插入前）
             history_max = dao.chuang.get_history_max(user_id)
