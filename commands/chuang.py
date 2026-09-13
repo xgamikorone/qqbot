@@ -31,7 +31,7 @@ def biased_random(min_v=1, max_v=999, power=2.0):
     """
     r = random.random()              # [0,1)
     biased = r ** power
-    value = min_v + biased * (max_v - min_v)
+    value = min_v + biased * (max_v - min_v + 1)
     return int(value)
 
 
