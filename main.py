@@ -10,6 +10,7 @@ from botpy.message import DirectMessage, GroupMessage, Message
 from dotenv import load_dotenv
 
 import commands
+from admin_server import BotAdminServer
 from commands import CommandManager
 from scheduled_jobs import (
     build_manual_scheduled_task,
@@ -27,6 +28,7 @@ class MyClient(botpy.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cmd_manager = CommandManager(self)
+        self.admin_server = BotAdminServer(self)
         self.scheduled_task_config = load_scheduled_tasks_config()
         self.task_scheduler = TaskScheduler(
             timezone=self.scheduled_task_config.timezone
@@ -43,6 +45,11 @@ class MyClient(botpy.Client):
     async def on_ready(self):
         if self.task_scheduler.start():
             _log.info("调度器已启动")
+        await self.admin_server.start()
+
+    async def close(self) -> None:
+        await self.admin_server.stop()
+        await super().close()
 
     async def _send_scheduled_message(self, channel_id: str, content: str) -> None:
         await self.api.post_message(channel_id=channel_id, content=content)
