@@ -22,16 +22,15 @@ IMG_BREAK = "imgs/chuang/break.png"
 def today_str() -> str:
     return beijing_now_str("%Y-%m-%d")
 
-def biased_random(min_v=1, max_v=999, power=2.0):
+def biased_random(min_v=1, max_v=999, power=27.0, uniform_weight=0.6):
     """
-    power 越大，越偏向小数
-    1.0 = 均匀随机
-    2~3 = 比较平滑
-    >3  = 很保守
+    用均匀与偏小分布的混合曲线生成随机数。
+
+    uniform_weight 让低数值区间保持较均匀；power 让高数值逐渐稀少。
     """
     r = random.random()              # [0,1)
-    biased = r ** power
-    value = min_v + biased * (max_v - min_v + 1)
+    scaled = uniform_weight * r + (1 - uniform_weight) * (r ** power)
+    value = min_v + scaled * (max_v - min_v + 1)
     return int(value)
 
 
@@ -59,7 +58,7 @@ class ChuangCommand(Command):
         if today_row is not None:
             distance = today_row
         else:
-            distance = biased_random(power=10.0)
+            distance = biased_random()
 
             # 2️⃣ 查询历史最高纪录（插入前）
             history_max = dao.chuang.get_history_max(user_id)
