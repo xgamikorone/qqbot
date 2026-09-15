@@ -61,6 +61,15 @@ OPERATIONS: tuple[AdminOperation, ...] = (
     )),
     AdminOperation("get_guild_member", "频道与成员", "指定成员", "获取频道内指定成员。", "get_guild_member", (GUILD_ID, USER_ID)),
     AdminOperation("get_voice_members", "频道与成员", "语音频道成员", "获取语音子频道中的成员。", "get_voice_members", (CHANNEL_ID,)),
+    AdminOperation("mute_member", "禁言", "禁言指定成员", "按秒禁言指定成员；填写 0 可解除禁言。", "mute_member", (
+        GUILD_ID, USER_ID, field("mute_seconds", "禁言时长（秒）", placeholder="3600"),
+    )),
+    AdminOperation("mute_multi_member", "禁言", "禁言多个成员", "按秒禁言多个成员；填写 0 可解除禁言。", "mute_multi_member", (
+        GUILD_ID, field("user_ids", "用户 ID 列表 JSON", kind="json", placeholder='["用户 ID 1", "用户 ID 2"]', expand=False), field("mute_seconds", "禁言时长（秒）", placeholder="3600"),
+    )),
+    AdminOperation("mute_all", "禁言", "全员禁言", "按秒禁言频道内所有非管理员成员；填写 0 可解除禁言。", "mute_all", (
+        GUILD_ID, field("mute_seconds", "禁言时长（秒）", placeholder="3600"),
+    )),
     AdminOperation("create_channel", "频道与成员", "创建子频道", "创建新的子频道。", "create_channel", (
         GUILD_ID, field("name", "名称"), field("type", "类型", kind="number"), field("sub_type", "子类型", kind="number"), field("options", "可选参数 JSON", kind="json", required=False, placeholder='{"position": 1}', expand=True),
     )),
