@@ -25,7 +25,7 @@ from .help_catalog import CommandHelp
 _log = logging.get_logger()
 
 
-@command("舰长", "num_guards")
+@command("舰长", "num_guards", "航海")
 class GuardsCommand(Command):
     """查询指定主播的当前舰长数量"""
 
@@ -87,20 +87,23 @@ class GuardsCommand(Command):
         for uid in filtered_uids:
             guard_info = num_guards.get(str(uid), {})
             num_guards_this_uid = guard_info.get("num_guards", None)
+            guard_num_1 = guard_info.get("guard_num_1", None)
+            guard_num_2 = guard_info.get("guard_num_2", None)
+            guard_num_3 = guard_info.get("guard_num_3", None)
             delta = guard_info.get("delta", None)
             name = user_infos[str(uid)]["name"]
             record_time = guard_info.get("record_time", "")
             delta_str = f"+{delta}" if delta is not None and delta > 0 else str(delta)
             # num_guards_str = f"{name}: {num_guards_this_uid if num_guards_this_uid is not None else '获取失败'}{' (' + delta_str + ')' if delta is not None else ''}"
             # num_guards_strs.append(num_guards_str)
-            name_guards_delta_list.append((name, num_guards_this_uid, delta_str))
+            name_guards_delta_list.append((name, num_guards_this_uid, guard_num_1, guard_num_2, guard_num_3, delta_str))
 
         name_guards_delta_list.sort(
             key=lambda x: (x[1] if x[1] is not None else -1, x[2]), reverse=True
         )
         num_guards_strs = [
-            f"{name}: {guards if guards is not None else '获取失败'}{' (' + delta + ')' if delta is not None else ''}"
-            for name, guards, delta in name_guards_delta_list
+            f"{name}: {guards if guards is not None else '获取失败'}{' (' + delta + ')' if delta is not None else ''}[{guard_num_1}, {guard_num_2}, {guard_num_3}]"
+            for name, guards, guard_num_1, guard_num_2, guard_num_3, delta in name_guards_delta_list
         ]
 
         res_str += "\n".join(num_guards_strs)
