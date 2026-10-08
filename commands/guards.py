@@ -102,7 +102,7 @@ class GuardsCommand(Command):
             key=lambda x: (x[1] if x[1] is not None else -1, x[2]), reverse=True
         )
         num_guards_strs = [
-            f"{name}: {guards if guards is not None else '获取失败'}{' (' + delta + ')' if delta is not None else ''}[{guard_num_1}, {guard_num_2}, {guard_num_3}]"
+            f"{name}: {guards if guards is not None else '获取失败'}{' (' + delta + ')' if delta is not None else ''} [{guard_num_1}, {guard_num_2}, {guard_num_3}]"
             for name, guards, guard_num_1, guard_num_2, guard_num_3, delta in name_guards_delta_list
         ]
 
