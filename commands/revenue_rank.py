@@ -665,7 +665,7 @@ class RevenueRankCommand(Command):
             os.remove(path)
         except Exception as e:
             _log.error(f"Failed to remove local image file: {e}")
-        return
+        return retry > 0
 
 
 revenue_rank_help_str = dedent(

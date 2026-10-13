@@ -266,7 +266,7 @@ class RevenueRankV2Command(Command):
                         file_image=path,
                         msg_id=message.id,
                     )
-                    return
+                    return True
                 except Exception as error:
                     _log.warning(f"发送斗虫 v2 图片失败 {attempt}/3: {error}")
                     if attempt < 3:

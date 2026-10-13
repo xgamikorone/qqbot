@@ -329,6 +329,8 @@ class UserSuperChatCommand(Command):
         _log.info(f"res_str: {res_str}")
         await self.send_reply(message, res_str)
 
+        return True
+
 
 @command("查用户舰长", "用户舰长", "user_guards", "user_guard")
 class UserGuardsCommand(Command):
@@ -447,6 +449,8 @@ class UserGuardsCommand(Command):
         _log.info(f"res_str: {res_str}")
         await self.send_reply(message, res_str)
 
+        return True
+
 
 @command("查用户弹幕", "用户弹幕", "user_danmus", "user_danmu")
 class UserDanmusCommand(Command):
@@ -557,6 +561,8 @@ class UserDanmusCommand(Command):
         )
         _log.info(f"res_str: {res_str}")
         await self.send_reply(message, res_str)
+
+        return True
 
 
 revenue_help_str = dedent(

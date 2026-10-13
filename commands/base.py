@@ -5,28 +5,40 @@ from botpy.message import Message
 from botpy import logging
 from dao import get_dao
 from collections import defaultdict
-from utils.time_utils import beijing_now
+from functools import wraps
+from time import monotonic
 from .help_catalog import CommandHelp
 
 _command_registry: Dict[str, Type["Command"]] = {}
 _log = logging.get_logger(__name__)
 
 last_used = defaultdict(float)
+_running_commands = set()
 
 def cooldown(seconds: int):
-    """冷却装饰器：限制命令的全局使用频率"""
+    """全局冷却：命令成功返回 True 后计时；失败返回 None/False 或抛异常。"""
     def decorator(func):
+        @wraps(func)
         async def wrapper(self, message: Message, args: List[str]):
             command_name = self.name
-            now_ts = beijing_now().timestamp()
-            elapsed = now_ts - last_used[command_name]
-            if elapsed < seconds:
+            if command_name in _running_commands:
+                await self.send_reply(message, "命令正在执行，请稍后再试")
+                return False
+            now_ts = monotonic()
+            elapsed = now_ts - last_used.get(command_name, now_ts - seconds)
+            if command_name in last_used and elapsed < seconds:
                 remaining = seconds - elapsed
                 _log.info(f"命令 {command_name} 冷却中，还需等待 {remaining:.1f} 秒")
                 await self.send_reply(message, f"命令冷却中，还需等待 {remaining:.1f} 秒")
-                return
-            last_used[command_name] = now_ts
-            return await func(self, message, args)
+                return False
+            _running_commands.add(command_name)
+            try:
+                result = await func(self, message, args)
+                if result is True:
+                    last_used[command_name] = monotonic()
+                return result
+            finally:
+                _running_commands.discard(command_name)
         return wrapper
     return decorator
 
