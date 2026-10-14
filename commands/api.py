@@ -16,6 +16,11 @@ api_url = os.getenv("API_URL")
 proxy = os.getenv("PROXY")
 global_session = None
 
+# 服务端按主播串行查询上游，批量请求需要更长的响应等待时间。
+STREAMER_COUNTS_TIMEOUT = aiohttp.ClientTimeout(
+    total=180, connect=20, sock_connect=20, sock_read=150
+)
+
 
 async def get_session():
     global global_session
@@ -85,6 +90,7 @@ async def get_num_guards(uids: List[int], room_ids: List[int]):
             params={"uids": uids, "room_ids": room_ids},
             headers=headers,
             proxy=proxy,
+            timeout=STREAMER_COUNTS_TIMEOUT,
         ) as response:
             data = await response.json()
             if data:
@@ -101,7 +107,11 @@ async def get_num_followers(uids: List[int]):
     try:
         session = await get_session()
         async with session.get(
-            url, params={"uids": uids}, headers=headers, proxy=proxy
+            url,
+            params={"uids": uids},
+            headers=headers,
+            proxy=proxy,
+            timeout=STREAMER_COUNTS_TIMEOUT,
         ) as response:
             data = await response.json()
             if data:

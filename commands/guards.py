@@ -75,6 +75,10 @@ class GuardsCommand(Command):
             filtered_uids.append(uid)
             room_ids.append(user_info["room_id"])
 
+        await self.send_reply(
+            message,
+            f"正在查询 {len(filtered_uids)} 位主播的舰长数，主播较多时可能需要等待，请稍候……",
+        )
         num_guards = await get_num_guards(filtered_uids, room_ids)
         _log.info(f"num_guards: {num_guards}")
         if num_guards is None:
@@ -170,6 +174,10 @@ class FollowersCommand(Command):
                 return
             uids = [item["uid"] for item in data]
 
+        await self.send_reply(
+            message,
+            f"正在查询 {len(uids)} 位主播的粉丝数，主播较多时可能需要等待，请稍候……",
+        )
         fans_data = await get_num_followers(uids)
         if fans_data is None:
             await self.send_reply(message, f"获取 {category} 分类主播粉丝信息失败")
