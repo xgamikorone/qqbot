@@ -10,6 +10,7 @@ from live_monitor_client import LiveMonitorError, check_live_monitor_health
 from scheduled_task_errors import ScheduledTaskParameterError
 from scheduled_task_config import ScheduledTasksConfig, TaskConfig
 from task_scheduler import ScheduledTask
+from utils.streamer_rooms import split_streamer_rooms
 
 
 MessageSender = Callable[[str, str], Awaitable[None]]
@@ -45,13 +46,13 @@ async def generate_fans_and_guards_message(category: str = "wan") -> str:
         )
         record_time = fans_info.get("record_time", record_time)
 
-    room_ids = [user_infos[str(uid)]["room_id"] for uid in filtered_uids]
-    guards_data = await get_num_guards(filtered_uids, room_ids)
+    guard_uids, room_ids, without_rooms = split_streamer_rooms(filtered_uids, user_infos)
+    guards_data = await get_num_guards(guard_uids, room_ids) if guard_uids else {}
     if guards_data is None:
         return "粉丝数:\n" + "\n".join(fans_lines) + "\n\n获取舰长信息失败"
 
     guards_lines = []
-    for uid in filtered_uids:
+    for uid in guard_uids:
         guard_info = guards_data.get(str(uid), {})
         num_guards = guard_info.get("num_guards")
         delta = guard_info.get("delta")
@@ -63,6 +64,7 @@ async def generate_fans_and_guards_message(category: str = "wan") -> str:
         )
         record_time = guard_info.get("record_time", record_time)
 
+    guards_lines.extend(f"{name}：暂无直播间" for name in without_rooms)
     return (
         "粉丝数:\n"
         + "\n".join(fans_lines)

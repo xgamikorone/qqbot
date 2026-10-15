@@ -20,6 +20,7 @@ from botpy import logging
 from .categories import categories
 from .tags import tags_map
 from .help_catalog import CommandHelp
+from utils.streamer_rooms import split_streamer_rooms
 
 
 _log = logging.get_logger()
@@ -66,14 +67,15 @@ class GuardsCommand(Command):
             return
 
         res_str = f"舰长数:\n"
-        filtered_uids = []
-        room_ids = []
-        for uid in uids:
-            user_info = user_infos.get(str(uid), None)
-            if user_info is None:
-                continue
-            filtered_uids.append(uid)
-            room_ids.append(user_info["room_id"])
+        filtered_uids, room_ids, without_rooms = split_streamer_rooms(uids, user_infos)
+        if not filtered_uids:
+            content = "没有可查询的直播间。"
+            if without_rooms:
+                content = "舰长数：\n" + "\n".join(
+                    f"{name}：暂无直播间" for name in without_rooms
+                )
+            await self.send_reply(message, content)
+            return
 
         await self.send_reply(
             message,
@@ -111,6 +113,8 @@ class GuardsCommand(Command):
         ]
 
         res_str += "\n".join(num_guards_strs)
+        if without_rooms:
+            res_str += "\n" + "\n".join(f"{name}：暂无直播间" for name in without_rooms)
         res_str += f"\n\n对比时间: {record_time}"
         await self.send_reply(message, res_str)
         return
