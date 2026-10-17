@@ -30,7 +30,19 @@ function createField(definition) {
   const label = document.createElement("label");
   label.textContent = definition.label + (definition.required ? " *" : "");
   let input;
-  if (definition.kind === "textarea" || definition.kind === "json" || definition.kind === "permission") {
+  if (definition.kind === "select") {
+    input = document.createElement("select");
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = definition.required ? "请选择…" : "不指定（使用默认值）";
+    input.append(empty);
+    for (const [value, caption] of definition.choices || []) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = caption;
+      input.append(option);
+    }
+  } else if (definition.kind === "textarea" || definition.kind === "json" || definition.kind === "permission") {
     input = document.createElement("textarea");
   } else {
     input = document.createElement("input");

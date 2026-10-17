@@ -98,9 +98,21 @@ class MenuPanelHTTPTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(["g1"], self.request.await_args.kwargs["json"]["group_openids"])
 
     async def test_invalid_inputs_return_400_without_http_request(self):
-        for payload in ({"scope": "unknown"}, {"scope": "c2c", "limit": "51"}, {"scope": "c2c", "unexpected": "x"}):
+        for payload in ({}, {"scope": ""}, {"scope": "unknown"}, {"scope": ["c2c"]}, {"scope": "c2c", "limit": "51"}, {"scope": "c2c", "unexpected": "x"}):
             response = await self.browser.post("/api/operations/get_panels", json=payload, headers=self.headers)
             self.assertEqual(400, response.status)
+        self.request.assert_not_awaited()
+
+    async def test_all_scope_choices_keep_original_api_values(self):
+        for scope in ("c2c", "group", "channel", "dm"):
+            response = await self.browser.post("/api/operations/get_panels", json={"scope": scope}, headers=self.headers)
+            self.assertEqual(200, response.status)
+            self.assertEqual(scope, self.request.await_args.kwargs["params"]["scope"])
+
+    async def test_invalid_target_selection_is_rejected(self):
+        response = await self.browser.post("/api/operations/update_panel_targets", json={"panel_id": "p1", "op": "delete", "user_openids": '["u1"]'}, headers=self.headers)
+        self.assertEqual(400, response.status)
+        self.assertIn("有效选项", await response.text())
         self.request.assert_not_awaited()
 
     async def test_empty_delete_response_is_success_but_timeout_is_not(self):

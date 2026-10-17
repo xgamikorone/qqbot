@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-FieldKind = Literal["text", "textarea", "number", "boolean", "json", "permission", "file"]
+FieldKind = Literal["text", "textarea", "number", "boolean", "json", "permission", "file", "select"]
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,7 @@ class OperationField:
     required: bool = True
     placeholder: str = ""
     expand: bool = False
+    choices: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,16 @@ CHANNEL_ID = field("channel_id", "子频道 ID")
 USER_ID = field("user_id", "用户 ID")
 ROLE_ID = field("role_id", "身份组 ID")
 MESSAGE_ID = field("message_id", "消息 ID")
+PANEL_SCOPE = field("scope", "生效场景", kind="select", choices=(
+    ("c2c", "单聊（c2c）"), ("group", "群聊（group）"),
+    ("channel", "文字子频道（channel）"), ("dm", "频道私信（dm）"),
+))
+PANEL_TARGET_TYPE = field("target_type", "作用范围", kind="select", choices=(
+    ("all", "全部用户或群（all）"), ("specific", "指定用户或群（specific，仅单聊/群聊）"),
+))
+PANEL_TARGET_OPERATION = field("op", "关联操作", kind="select", choices=(
+    ("add", "添加关联（add）"), ("del", "移除关联（del）"),
+))
 
 
 OPERATIONS: tuple[AdminOperation, ...] = (
@@ -55,13 +66,13 @@ OPERATIONS: tuple[AdminOperation, ...] = (
         field("menu", "菜单配置 JSON（无需外层 menu）", kind="json", placeholder='{"items":[{"name":"帮助","type":"send_message","send_message":"/help"}]}'),
     ), confirmation="这会完整覆盖所有用户的 C2C 菜单，确定继续？"),
     AdminOperation("get_panels", "菜单与指令面板", "查询指令面板列表", "按场景分页查询；使用返回的 next_cursor 翻页，30 QPM。", "get_panels", (
-        field("scope", "场景：c2c/group/channel/dm", placeholder="c2c"),
+        PANEL_SCOPE,
         field("cursor", "分页游标", required=False),
         field("limit", "数量（1–50，默认 20）", kind="number", required=False, placeholder="20"),
     )),
     AdminOperation("create_panel", "菜单与指令面板", "创建指令面板", "每个机器人最多 20 个面板；specific 仅支持 c2c/group，10 QPM。", "create_panel", (
-        field("scope", "场景：c2c/group/channel/dm", placeholder="c2c"),
-        field("target_type", "范围：all/specific", placeholder="all"),
+        PANEL_SCOPE,
+        PANEL_TARGET_TYPE,
         field("panel", "面板配置 JSON（无需外层 panel）", kind="json", placeholder='{"items":[{"name":"/help","type":"command","desc":"使用帮助"}],"remark":"帮助面板"}'),
         field("user_openids", "指定用户 OpenID 数组（仅 c2c specific）", kind="json", required=False, placeholder='["用户 OpenID"]'),
         field("group_openids", "指定群 OpenID 数组（仅 group specific）", kind="json", required=False, placeholder='["群 OpenID"]'),
@@ -73,7 +84,7 @@ OPERATIONS: tuple[AdminOperation, ...] = (
     ), confirmation="这会完整覆盖该面板的内容和备注，确定继续？"),
     AdminOperation("delete_panel", "菜单与指令面板", "删除指令面板", "删除后不再对任何关联用户或群生效，10 QPM。", "delete_panel", (field("panel_id", "面板 ID"),), confirmation="确定删除此指令面板？所有关联用户和群将无法再使用该面板。"),
     AdminOperation("update_panel_targets", "菜单与指令面板", "修改面板关联对象", "仅用于 specific 面板，一次最多 20 个用户或群；60 QPM。", "update_panel_targets", (
-        field("panel_id", "面板 ID"), field("op", "操作：add/del", placeholder="add"),
+        field("panel_id", "面板 ID"), PANEL_TARGET_OPERATION,
         field("user_openids", "用户 OpenID 数组（仅 c2c）", kind="json", required=False, placeholder='["用户 OpenID"]'),
         field("group_openids", "群 OpenID 数组（仅 group）", kind="json", required=False, placeholder='["群 OpenID"]'),
     ), confirmation="确定添加或移除该面板的关联对象？"),

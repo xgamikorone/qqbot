@@ -25,7 +25,7 @@ class OperationInputError(ValueError):
 
 
 def _decode_field(field_kind: str, value: Any) -> Any:
-    if field_kind in {"text", "textarea"}:
+    if field_kind in {"text", "textarea", "select"}:
         if not isinstance(value, str):
             raise OperationInputError("文本参数必须是字符串")
         return value
@@ -95,6 +95,8 @@ async def invoke_operation(
                 raise OperationInputError(f"缺少参数: {definition.label}")
             continue
         decoded = _decode_field(definition.kind, value)
+        if definition.kind == "select" and decoded not in {choice[0] for choice in definition.choices}:
+            raise OperationInputError(f"{definition.label} 不是有效选项")
         if definition.expand:
             if not isinstance(decoded, dict):
                 raise OperationInputError(f"{definition.label} 必须是 JSON 对象")

@@ -4,6 +4,19 @@ from admin_operations import get_operation, list_operations
 
 
 class AdminOperationTests(unittest.TestCase):
+    def test_enum_fields_expose_labeled_choices(self):
+        expected = {
+            ("get_panels", "scope"): {"c2c", "group", "channel", "dm"},
+            ("create_panel", "scope"): {"c2c", "group", "channel", "dm"},
+            ("create_panel", "target_type"): {"all", "specific"},
+            ("update_panel_targets", "op"): {"add", "del"},
+        }
+        for (operation_id, name), values in expected.items():
+            definition = next(item for item in get_operation(operation_id).as_dict()["fields"] if item["name"] == name)
+            self.assertEqual("select", definition["kind"])
+            self.assertEqual(values, {value for value, _ in definition["choices"]})
+            self.assertTrue(all(caption for _, caption in definition["choices"]))
+
     def test_catalog_includes_common_read_and_write_operations(self):
         operations = {operation.id for operation in list_operations()}
 
