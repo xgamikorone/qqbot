@@ -27,15 +27,17 @@ class TranslationParsingTests(unittest.TestCase):
     def test_defaults_flags_aliases_and_option_terminator(self):
         cases = [
             (["Hello", "world"], ("auto", "zh", "Hello world")),
-            (["--to", "英文", "你好"], ("auto", "en", "你好")),
-            (["--from", "JP", "--to", "zh", "こんにちは"], ("jp", "zh", "こんにちは")),
+            (["/t", "英文", "你好"], ("auto", "en", "你好")),
+            (["/f", "JP", "/t", "zh", "こんにちは"], ("jp", "zh", "こんにちは")),
+            (["/t", "en", "/f", "zh", "你好"], ("zh", "en", "你好")),
+            (["--", "/help"], ("auto", "zh", "/help")),
             (["--", "--help"], ("auto", "zh", "--help")),
         ]
         for args, expected in cases:
             self.assertEqual(expected, parse_arguments(args))
 
     def test_invalid_and_oversized_arguments(self):
-        for args in ([], ["--to"], ["--to", "auto", "hi"], ["--to", "../en", "hi"], ["--bad", "hi"], ["--to", "en", "--to", "zh", "hi"], ["中" * 1001]):
+        for args in ([], ["/t"], ["/f"], ["/t", "auto", "hi"], ["/t", "../en", "hi"], ["/s", "en", "hi"], ["--to", "en", "hi"], ["--bad", "hi"], ["/t", "en", "/t", "zh", "hi"], ["中" * 1001]):
             with self.subTest(args=args[:3]), self.assertRaises(TranslationError):
                 parse_arguments(args)
 
@@ -141,4 +143,10 @@ class TranslateCommandTests(unittest.IsolatedAsyncioTestCase):
     def test_registered_aliases_and_help_are_available(self):
         self.assertIs(TranslateCommand, _command_registry["翻译"])
         self.assertIs(TranslateCommand, _command_registry["translate"])
-        self.assertIn("--to", HelpCatalog(_command_registry).render("翻译"))
+        self.assertIn("/t", HelpCatalog(_command_registry).render("翻译"))
+        self.assertIn("/f", HelpCatalog(_command_registry).render("翻译"))
+
+    async def test_slash_flags_are_forwarded_to_translation_service(self):
+        with patch("commands.translate.translate", new=AsyncMock(return_value=TranslationResult("jp", "en", "Hello"))) as request:
+            self.assertIs(True, await self.command.execute(self.message, ["/f", "jp", "/t", "en", "こんにちは"]))
+        request.assert_awaited_once_with("こんにちは", source="jp", target="en")
