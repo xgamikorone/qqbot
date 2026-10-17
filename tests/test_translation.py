@@ -10,7 +10,7 @@ from commands.base import _command_registry, _running_commands, last_used
 from commands.help_catalog import HelpCatalog
 from commands.translate import TranslateCommand, parse_arguments
 from utils.baidu_translate import (
-    TRANSLATE_URL, TranslationError, TranslationResult, build_payload,
+    ERROR_DETAILS, TRANSLATE_URL, TranslationError, TranslationResult, build_payload,
     parse_response, translate,
 )
 
@@ -51,6 +51,37 @@ class TranslationParsingTests(unittest.TestCase):
                 parse_response({"error_code": code, "error_msg": "secret and private text"})
             self.assertIn(expected, str(caught.exception))
             self.assertNotIn("secret", str(caught.exception))
+
+    def test_all_official_failure_codes_include_meaning_advice_and_safe_log(self):
+        codes = {
+            "52001", "52002", "52003", "54000", "54001", "54003", "54004",
+            "54005", "58000", "58001", "58002", "58003", "90107", "20003",
+        }
+        self.assertEqual(codes, set(ERROR_DETAILS))
+        for code in codes:
+            for upstream_code in (code, int(code)):
+                with self.subTest(code=upstream_code):
+                    with self.assertLogs("utils.baidu_translate", level="WARNING") as logs:
+                        with self.assertRaises(TranslationError) as caught:
+                            parse_response({"error_code": upstream_code, "error_msg": "private secret original text"})
+                    meaning, advice = ERROR_DETAILS[code]
+                    message = str(caught.exception)
+                    self.assertIn(code, message)
+                    self.assertIn(meaning, message)
+                    self.assertIn(advice, message)
+                    self.assertIn(message, logs.output[0])
+                    self.assertNotIn("private", message + logs.output[0])
+
+    def test_unknown_numeric_code_is_shown_without_echoing_error_message(self):
+        with self.assertRaisesRegex(TranslationError, "59999：未知错误"):
+            parse_response({"error_code": "59999", "error_msg": "private secret"})
+        with self.assertRaises(TranslationError) as caught:
+            parse_response({"error_code": "private secret\n", "error_msg": "private secret"})
+        self.assertNotIn("secret", str(caught.exception))
+
+    def test_explicit_success_code_is_not_treated_as_error(self):
+        result = parse_response({"error_code": 52000, "from": "en", "to": "zh", "trans_result": [{"dst": "你好"}]})
+        self.assertEqual("你好", result.text)
 
     def test_malformed_and_empty_responses_are_rejected(self):
         for value in (None, [], {}, {"trans_result": []}, {"trans_result": [{"dst": 2}]}, {"trans_result": [{"dst": " "}]}):
