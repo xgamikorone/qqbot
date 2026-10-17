@@ -181,3 +181,44 @@ class TranslateCommandTests(unittest.IsolatedAsyncioTestCase):
         with patch("commands.translate.translate", new=AsyncMock(return_value=TranslationResult("jp", "en", "Hello"))) as request:
             self.assertIs(True, await self.command.execute(self.message, ["/f", "jp", "/t", "en", "こんにちは"]))
         request.assert_awaited_once_with("こんにちは", source="jp", target="en")
+
+    async def test_mentions_are_replaced_before_translation_and_each_user_fetched_once(self):
+        lookup = AsyncMock(side_effect=[{"nick": "丸子"}, {"nick": r"名字\1"}])
+        self.command.client = SimpleNamespace(api=SimpleNamespace(get_guild_member=lookup))
+        self.message.guild_id = "guild1"
+        with patch("commands.translate.translate", new=AsyncMock(return_value=TranslationResult("zh", "en", "Hello"))) as request:
+            await self.command.execute(self.message, ["/t", "en", "你好<@!123>", "<@!123>", "<@456>", "<@!456>"])
+        request.assert_awaited_once_with(r"你好丸子 丸子 名字\1 名字\1", source="auto", target="en")
+        self.assertEqual(2, lookup.await_count)
+        self.assertEqual([("guild1", "123"), ("guild1", "456")], [call.args for call in lookup.await_args_list])
+
+    async def test_lookup_failure_or_empty_nick_is_cached_and_preserves_original_tokens(self):
+        for response in (None, {}, {"nick": ""}, {"nick": 123}, RuntimeError("not available")):
+            with self.subTest(response=response):
+                lookup = AsyncMock(side_effect=response) if isinstance(response, Exception) else AsyncMock(return_value=response)
+                self.command.client = SimpleNamespace(api=SimpleNamespace(get_guild_member=lookup))
+                result = await self.command.replace_user_mentions(SimpleNamespace(guild_id="g"), "<@!123> <@123>")
+                self.assertEqual("<@!123> <@123>", result)
+                lookup.assert_awaited_once_with("g", "123")
+
+    async def test_nickname_cache_is_request_scoped_and_never_crosses_guilds(self):
+        lookup = AsyncMock(side_effect=[{"nick": "原名"}, {"nick": "新名"}, {"nick": "另一频道名"}])
+        self.command.client = SimpleNamespace(api=SimpleNamespace(get_guild_member=lookup))
+        for guild_id, name in (("a", "原名"), ("a", "新名"), ("b", "另一频道名")):
+            self.assertEqual(name, await self.command.replace_user_mentions(SimpleNamespace(guild_id=guild_id), "<@!123>"))
+        self.assertEqual(3, lookup.await_count)
+
+    async def test_plain_text_and_missing_guild_do_not_lookup(self):
+        lookup = AsyncMock()
+        self.command.client = SimpleNamespace(api=SimpleNamespace(get_guild_member=lookup))
+        for message, text in ((SimpleNamespace(guild_id="g"), "你好 <@!invalid>"), (SimpleNamespace(), "<@!123>")):
+            self.assertEqual(text, await self.command.replace_user_mentions(message, text))
+        lookup.assert_not_awaited()
+
+    async def test_nickname_expansion_over_limit_does_not_request_translation(self):
+        self.command.client = SimpleNamespace(api=SimpleNamespace(get_guild_member=AsyncMock(return_value={"nick": "中" * 1001})))
+        self.message.guild_id = "g"
+        with patch("commands.translate.translate", new=AsyncMock()) as request:
+            self.assertIs(False, await self.command.execute(self.message, ["<@!123>"]))
+        request.assert_not_awaited()
+        self.assertNotIn("translate", last_used)

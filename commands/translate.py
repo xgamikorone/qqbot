@@ -10,6 +10,7 @@ LANGUAGE_NAMES = {
     "韩语": "kor", "法语": "fra", "德语": "de", "西班牙语": "spa",
     "俄语": "ru", "繁体中文": "cht", "自动": "auto",
 }
+USER_MENTION = re.compile(r"<@!?([0-9]+)>")
 
 
 def parse_arguments(args: list[str]) -> tuple[str, str, str]:
@@ -60,10 +61,38 @@ class TranslateCommand(Command):
                  "单次最多 1000 字符，成功后全局冷却 3 秒。请勿提交敏感信息。"),
     )
 
+    async def replace_user_mentions(self, message, text: str) -> str:
+        """Resolve each user once per translation, without cross-guild/stale cache."""
+        guild_id = getattr(message, "guild_id", None)
+        if not guild_id:
+            return text
+        names: dict[str, str | None] = {}
+        for match in USER_MENTION.finditer(text):
+            user_id = match.group(1)
+            if user_id in names:
+                continue
+            # Cache failures too, so repeated mentions never trigger a retry loop.
+            names[user_id] = None
+            try:
+                user = await self.client.api.get_guild_member(guild_id, user_id)
+                nick = user.get("nick") if isinstance(user, dict) else None
+                if isinstance(nick, str) and nick.strip():
+                    names[user_id] = nick
+            except Exception:
+                # Missing permissions/departed members should not break translation.
+                # Preserve the original token; do not log member data or exceptions.
+                continue
+        # Callable replacement preserves literal backslashes in nicknames and
+        # does not recursively resolve mention-like text inside a nickname.
+        return USER_MENTION.sub(lambda match: names[match.group(1)] or match.group(0), text)
+
     @cooldown(3)
     async def execute(self, message, args: list[str]):
         try:
             source, target, text = parse_arguments(args)
+            text = await self.replace_user_mentions(message, text)
+            if len(text) > MAX_TEXT_LENGTH:
+                raise TranslationError(f"替换频道昵称后超过 {MAX_TEXT_LENGTH} 个字符，请分段发送。")
             result = await translate(text, source=source, target=target)
         except TranslationError as error:
             await self.send_reply(message, str(error))
