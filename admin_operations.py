@@ -25,6 +25,7 @@ class AdminOperation:
     description: str
     api_method: str
     fields: tuple[OperationField, ...]
+    confirmation: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -33,6 +34,7 @@ class AdminOperation:
             "title": self.title,
             "description": self.description,
             "fields": [field.__dict__ for field in self.fields],
+            "confirmation": self.confirmation,
         }
 
 
@@ -48,6 +50,33 @@ MESSAGE_ID = field("message_id", "消息 ID")
 
 
 OPERATIONS: tuple[AdminOperation, ...] = (
+    AdminOperation("get_global_menu", "菜单与指令面板", "查询全局菜单", "查询当前 C2C 菜单与版本，30 QPM。", "get_global_menu", ()),
+    AdminOperation("update_global_menu", "菜单与指令面板", "修改全局菜单", "完整覆盖 C2C 菜单，对所有用户生效；最多 10 项，5 QPM。", "update_global_menu", (
+        field("menu", "菜单配置 JSON（无需外层 menu）", kind="json", placeholder='{"items":[{"name":"帮助","type":"send_message","send_message":"/help"}]}'),
+    ), confirmation="这会完整覆盖所有用户的 C2C 菜单，确定继续？"),
+    AdminOperation("get_panels", "菜单与指令面板", "查询指令面板列表", "按场景分页查询；使用返回的 next_cursor 翻页，30 QPM。", "get_panels", (
+        field("scope", "场景：c2c/group/channel/dm", placeholder="c2c"),
+        field("cursor", "分页游标", required=False),
+        field("limit", "数量（1–50，默认 20）", kind="number", required=False, placeholder="20"),
+    )),
+    AdminOperation("create_panel", "菜单与指令面板", "创建指令面板", "每个机器人最多 20 个面板；specific 仅支持 c2c/group，10 QPM。", "create_panel", (
+        field("scope", "场景：c2c/group/channel/dm", placeholder="c2c"),
+        field("target_type", "范围：all/specific", placeholder="all"),
+        field("panel", "面板配置 JSON（无需外层 panel）", kind="json", placeholder='{"items":[{"name":"/help","type":"command","desc":"使用帮助"}],"remark":"帮助面板"}'),
+        field("user_openids", "指定用户 OpenID 数组（仅 c2c specific）", kind="json", required=False, placeholder='["用户 OpenID"]'),
+        field("group_openids", "指定群 OpenID 数组（仅 group specific）", kind="json", required=False, placeholder='["群 OpenID"]'),
+    ), confirmation="确定创建指令面板并向指定范围生效？"),
+    AdminOperation("get_panel", "菜单与指令面板", "查询指令面板详情", "查询配置、版本与关联对象，30 QPM。", "get_panel", (field("panel_id", "面板 ID"),)),
+    AdminOperation("update_panel", "菜单与指令面板", "修改指令面板", "完整覆盖面板内容和备注，不改变关联对象；最多 20 项，10 QPM。", "update_panel", (
+        field("panel_id", "面板 ID"),
+        field("panel", "完整面板配置 JSON", kind="json", placeholder='{"items":[{"name":"/help","type":"command","desc":"使用帮助"}],"remark":"帮助面板"}'),
+    ), confirmation="这会完整覆盖该面板的内容和备注，确定继续？"),
+    AdminOperation("delete_panel", "菜单与指令面板", "删除指令面板", "删除后不再对任何关联用户或群生效，10 QPM。", "delete_panel", (field("panel_id", "面板 ID"),), confirmation="确定删除此指令面板？所有关联用户和群将无法再使用该面板。"),
+    AdminOperation("update_panel_targets", "菜单与指令面板", "修改面板关联对象", "仅用于 specific 面板，一次最多 20 个用户或群；60 QPM。", "update_panel_targets", (
+        field("panel_id", "面板 ID"), field("op", "操作：add/del", placeholder="add"),
+        field("user_openids", "用户 OpenID 数组（仅 c2c）", kind="json", required=False, placeholder='["用户 OpenID"]'),
+        field("group_openids", "群 OpenID 数组（仅 group）", kind="json", required=False, placeholder='["群 OpenID"]'),
+    ), confirmation="确定添加或移除该面板的关联对象？"),
     AdminOperation("me", "基础查询", "机器人资料", "获取当前机器人信息。", "me", ()),
     AdminOperation("me_guilds", "基础查询", "已加入频道", "分页查看机器人已加入的频道。", "me_guilds", (
         field("guild_id", "起始频道 ID", required=False), field("limit", "数量", kind="number", required=False, placeholder="100"), field("desc", "倒序", kind="boolean", required=False),

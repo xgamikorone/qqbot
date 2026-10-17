@@ -60,6 +60,9 @@ function createOperationCard(operation) {
   form.append(button);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const panelId = form.elements.namedItem("panel_id");
+    const detail = panelId ? `\n面板 ID：${panelId.value}` : "";
+    if (operation.confirmation && !window.confirm(operation.confirmation + detail)) return;
     button.disabled = true;
     showResult(`正在调用：${operation.title}`, {});
     try {

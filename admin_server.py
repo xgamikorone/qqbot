@@ -12,6 +12,7 @@ from typing import Any
 from aiohttp import web
 
 from admin_operations import AdminOperation, get_operation, list_operations
+from botpy_ext.api import APIInputError
 
 
 _log = logging.getLogger(__name__)
@@ -107,7 +108,10 @@ async def invoke_operation(
     api_method = getattr(client.api, operation.api_method, None)
     if api_method is None or not callable(api_method):
         raise OperationInputError("当前 Bot SDK 不支持该操作")
-    return await api_method(**arguments)
+    try:
+        return await api_method(**arguments)
+    except APIInputError as error:
+        raise OperationInputError(str(error)) from error
 
 
 def _json_safe(value: Any) -> Any:
@@ -188,10 +192,14 @@ class BotAdminServer:
         try:
             payload = await request.json()
             result = await invoke_operation(self.client, operation, payload)
+            if operation.category == "菜单与指令面板" and result is None:
+                raise web.HTTPGatewayTimeout(text="QQ API 未返回结果；写操作可能已生效，请先查询确认，不要直接重试")
         except json.JSONDecodeError as error:
             raise web.HTTPBadRequest(text="请求体必须是 JSON") from error
         except OperationInputError as error:
             raise web.HTTPBadRequest(text=str(error)) from error
+        except web.HTTPException:
+            raise
         except Exception:
             _log.exception("Admin operation failed: %s", operation.id)
             raise web.HTTPBadGateway(text="QQ API 调用失败，请查看机器人日志") from None
