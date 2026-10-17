@@ -125,6 +125,16 @@ class MenuPanelHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(504, response.status)
         self.assertIn("先查询确认", await response.text())
 
+    async def test_visual_panel_object_is_forwarded_and_array_is_rejected(self):
+        panel = {"items": [{"type": "command", "name": "/help", "desc": "帮助", "only_admin": False}], "remark": "测试", "version": 3}
+        response = await self.browser.post("/api/operations/update_panel", json={"panel_id": "p1", "panel": panel}, headers=self.headers)
+        self.assertEqual(200, response.status)
+        self.assertEqual(panel, self.request.await_args.kwargs["json"]["panel"])
+        self.request.reset_mock()
+        response = await self.browser.post("/api/operations/update_panel", json={"panel_id": "p1", "panel": []}, headers=self.headers)
+        self.assertEqual(400, response.status)
+        self.request.assert_not_awaited()
+
 
 if __name__ == "__main__":
     unittest.main()

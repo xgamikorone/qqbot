@@ -26,7 +26,147 @@ async function readFileAsDataUrl(file) {
   });
 }
 
+function panelConfiguration(original, rows, remark) {
+  return {
+    ...original,
+    items: rows.map((row) => {
+      const item = { ...row.original, type: row.type, name: row.name, desc: row.desc, only_admin: row.only_admin };
+      if (row.type === "link") item.link = row.link;
+      else delete item.link;
+      return item;
+    }),
+    remark,
+  };
+}
+
+function parsePanel(text) {
+  const value = JSON.parse(text);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("面板配置必须是 JSON 对象");
+  return value;
+}
+
+function createPanelEditor(definition) {
+  const root = document.createElement("fieldset");
+  root.className = "panel-editor";
+  const legend = document.createElement("legend");
+  legend.textContent = definition.label;
+  const modeField = createField({ name: "", label: "编辑方式", kind: "select", choices: [["visual", "表单编辑（推荐）"], ["json", "高级 JSON / 粘贴已有配置"]] });
+  const mode = modeField.querySelector("select");
+  mode.remove(0);
+  mode.value = "visual";
+  const visual = document.createElement("fieldset");
+  visual.className = "panel-visual";
+  const list = document.createElement("div");
+  list.className = "panel-items";
+  const remarkField = createField({ name: "", label: "面板备注（仅自己可见）", kind: "text" });
+  const remark = remarkField.querySelector("input");
+  remark.maxLength = 255;
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "quiet";
+  const hint = document.createElement("p");
+  hint.className = "editor-hint";
+  hint.textContent = "按添加顺序展示，最多 20 项。指令名称即点击后填入聊天框的文本。修改会完整覆盖，请先导入原配置。";
+  const rawField = createField({ name: "", label: "面板 JSON（无需外层 panel）", kind: "json" });
+  const raw = rawField.querySelector("textarea");
+  raw.disabled = true;
+  rawField.hidden = true;
+  const error = document.createElement("p");
+  error.className = "error";
+  error.setAttribute("role", "alert");
+  let original = {};
+  let rows = [];
+  function refresh() {
+    add.disabled = rows.length >= 20;
+    add.textContent = `添加一项（${rows.length}/20）`;
+  }
+  function addRow(item = {}) {
+    if (rows.length >= 20) return;
+    const block = document.createElement("div");
+    block.className = "panel-item";
+    const controls = {};
+    const definitions = [
+      { name: "type", label: "类型", kind: "select", choices: [["command", "指令"], ["link", "链接"]] },
+      { name: "name", label: "指令文本 / 链接名称", kind: "text", placeholder: "/help" },
+      { name: "desc", label: "功能说明", kind: "text" },
+      { name: "only_admin", label: "仅管理员可用", kind: "boolean" },
+      { name: "link", label: "跳转链接", kind: "text", placeholder: "https://example.com" },
+    ];
+    const fields = {};
+    for (const def of definitions) {
+      const field = createField({ ...def, name: "", required: false });
+      const input = field.querySelector("input, select");
+      controls[def.name] = input;
+      fields[def.name] = field;
+      if (def.kind === "boolean") input.checked = item[def.name] === true;
+      else input.value = item[def.name] || (def.name === "type" ? "command" : "");
+      block.append(field);
+    }
+    controls.type.remove(0);
+    controls.name.required = true;
+    controls.desc.maxLength = 30;
+    controls.link.type = "url";
+    function updateType() {
+      const isLink = controls.type.value === "link";
+      controls.link.disabled = !isLink;
+      controls.link.required = isLink;
+      fields.link.hidden = !isLink;
+    }
+    controls.type.addEventListener("change", updateType);
+    updateType();
+    const row = { original: item, controls };
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "quiet";
+    remove.textContent = "移除此项";
+    remove.addEventListener("click", () => { rows = rows.filter((entry) => entry !== row); block.remove(); refresh(); });
+    block.append(remove);
+    rows.push(row);
+    list.append(block);
+    refresh();
+  }
+  function readVisual() {
+    return panelConfiguration(original, rows.map((row) => ({
+      original: row.original,
+      ...Object.fromEntries(Object.entries(row.controls).map(([key, input]) => [key, key === "only_admin" ? input.checked : input.value])),
+    })), remark.value);
+  }
+  mode.addEventListener("change", () => {
+    error.textContent = "";
+    try {
+      if (mode.value === "json") raw.value = JSON.stringify(readVisual(), null, 2);
+      else {
+        const value = parsePanel(raw.value);
+        const items = value.items || [];
+        if (!Array.isArray(items) || items.length > 20 || items.some((item) => !item || !["command", "link"].includes(item.type))) throw new Error("表单仅支持最多 20 项指令或链接，请在高级 JSON 中编辑此配置");
+        original = value;
+        rows = [];
+        list.replaceChildren();
+        remark.value = value.remark || "";
+        items.forEach(addRow);
+        refresh();
+      }
+    } catch (failure) {
+      mode.value = "json";
+      error.textContent = failure.message;
+    }
+    const isRaw = mode.value === "json";
+    visual.disabled = isRaw;
+    visual.hidden = isRaw;
+    raw.disabled = !isRaw;
+    raw.required = isRaw;
+    rawField.hidden = !isRaw;
+  });
+  add.addEventListener("click", () => addRow());
+  visual.append(hint, list, add, remarkField);
+  root.append(legend, modeField, visual, rawField, error);
+  addRow();
+  root.readValue = () => mode.value === "json" ? parsePanel(raw.value) : readVisual();
+  return root;
+}
+
 function createField(definition) {
+  if (definition.kind === "panel") return createPanelEditor(definition);
   const label = document.createElement("label");
   label.textContent = definition.label + (definition.required ? " *" : "");
   let input;
@@ -65,7 +205,12 @@ function createOperationCard(operation) {
   article.querySelector("h4").textContent = operation.title;
   article.querySelector("p").textContent = operation.description;
   const form = document.createElement("form");
-  operation.fields.forEach((field) => form.append(createField(field)));
+  const editors = new Map();
+  operation.fields.forEach((field) => {
+    const control = createField(field);
+    if (field.kind === "panel") editors.set(field.name, control);
+    form.append(control);
+  });
   const button = document.createElement("button");
   button.type = "submit";
   button.textContent = "执行";
@@ -80,6 +225,7 @@ function createOperationCard(operation) {
     try {
       const payload = {};
       for (const field of operation.fields) {
+        if (field.kind === "panel") { payload[field.name] = editors.get(field.name).readValue(); continue; }
         const input = form.elements.namedItem(field.name);
         if (field.kind === "boolean") { if (input.checked) payload[field.name] = true; continue; }
         if (field.kind === "file") { if (input.files[0]) payload[field.name] = await readFileAsDataUrl(input.files[0]); continue; }

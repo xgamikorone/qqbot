@@ -4,6 +4,11 @@ from admin_operations import get_operation, list_operations
 
 
 class AdminOperationTests(unittest.TestCase):
+    def test_panel_configuration_uses_visual_editor(self):
+        for operation_id in ("create_panel", "update_panel"):
+            definition = next(item for item in get_operation(operation_id).fields if item.name == "panel")
+            self.assertEqual("panel", definition.kind)
+
     def test_enum_fields_expose_labeled_choices(self):
         expected = {
             ("get_panels", "scope"): {"c2c", "group", "channel", "dm"},

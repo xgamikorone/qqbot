@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-FieldKind = Literal["text", "textarea", "number", "boolean", "json", "permission", "file", "select"]
+FieldKind = Literal["text", "textarea", "number", "boolean", "json", "permission", "file", "select", "panel"]
 
 
 @dataclass(frozen=True)
@@ -73,14 +73,14 @@ OPERATIONS: tuple[AdminOperation, ...] = (
     AdminOperation("create_panel", "菜单与指令面板", "创建指令面板", "每个机器人最多 20 个面板；specific 仅支持 c2c/group，10 QPM。", "create_panel", (
         PANEL_SCOPE,
         PANEL_TARGET_TYPE,
-        field("panel", "面板配置 JSON（无需外层 panel）", kind="json", placeholder='{"items":[{"name":"/help","type":"command","desc":"使用帮助"}],"remark":"帮助面板"}'),
+        field("panel", "面板配置", kind="panel"),
         field("user_openids", "指定用户 OpenID 数组（仅 c2c specific）", kind="json", required=False, placeholder='["用户 OpenID"]'),
         field("group_openids", "指定群 OpenID 数组（仅 group specific）", kind="json", required=False, placeholder='["群 OpenID"]'),
     ), confirmation="确定创建指令面板并向指定范围生效？"),
     AdminOperation("get_panel", "菜单与指令面板", "查询指令面板详情", "查询配置、版本与关联对象，30 QPM。", "get_panel", (field("panel_id", "面板 ID"),)),
     AdminOperation("update_panel", "菜单与指令面板", "修改指令面板", "完整覆盖面板内容和备注，不改变关联对象；最多 20 项，10 QPM。", "update_panel", (
         field("panel_id", "面板 ID"),
-        field("panel", "完整面板配置 JSON", kind="json", placeholder='{"items":[{"name":"/help","type":"command","desc":"使用帮助"}],"remark":"帮助面板"}'),
+        field("panel", "完整面板配置", kind="panel"),
     ), confirmation="这会完整覆盖该面板的内容和备注，确定继续？"),
     AdminOperation("delete_panel", "菜单与指令面板", "删除指令面板", "删除后不再对任何关联用户或群生效，10 QPM。", "delete_panel", (field("panel_id", "面板 ID"),), confirmation="确定删除此指令面板？所有关联用户和群将无法再使用该面板。"),
     AdminOperation("update_panel_targets", "菜单与指令面板", "修改面板关联对象", "仅用于 specific 面板，一次最多 20 个用户或群；60 QPM。", "update_panel_targets", (

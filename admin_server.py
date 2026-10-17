@@ -42,7 +42,7 @@ def _decode_field(field_kind: str, value: Any) -> Any:
         if isinstance(value, str) and value.lower() in {"true", "false"}:
             return value.lower() == "true"
         raise OperationInputError("布尔参数必须是 true 或 false")
-    if field_kind in {"json", "permission"}:
+    if field_kind in {"json", "permission", "panel"}:
         if isinstance(value, str):
             try:
                 value = json.loads(value)
@@ -50,6 +50,8 @@ def _decode_field(field_kind: str, value: Any) -> Any:
                 raise OperationInputError("JSON 参数格式错误") from error
         if not isinstance(value, (dict, list)):
             raise OperationInputError("JSON 参数必须是对象或数组")
+        if field_kind == "panel" and not isinstance(value, dict):
+            raise OperationInputError("面板配置必须是 JSON 对象")
         if field_kind == "permission":
             if not isinstance(value, dict):
                 raise OperationInputError("权限参数必须是 JSON 对象")
