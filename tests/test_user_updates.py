@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 from user_updates import (
+    UserUpdate,
     UserUpdatesConfigError,
     load_latest_user_update,
     load_updates,
@@ -55,9 +56,10 @@ updates:
             self.assertIsNone(load_latest_user_update(path))
 
     def test_render_uses_consistent_user_facing_format(self):
-        update = load_latest_user_update()
-
-        self.assertIsNotNone(update)
+        update = UserUpdate(
+            published_at=date(2026, 8, 9), title="功能更新", audience="user",
+            changes=("新增 /斗虫v2",),
+        )
         rendered = update.render()
         self.assertTrue(rendered.startswith("最近更新 · 2026-08-09"))
         self.assertIn("\n- 新增 /斗虫v2", rendered)
