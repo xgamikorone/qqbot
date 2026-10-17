@@ -10,6 +10,7 @@ from botpy.message import DirectMessage, GroupMessage, Message
 from dotenv import load_dotenv
 
 import commands
+from botpy_ext import ExtendedBotAPI
 from admin_server import BotAdminServer
 from commands import CommandManager
 from scheduled_jobs import (
@@ -27,6 +28,7 @@ load_dotenv()
 class MyClient(botpy.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.api = ExtendedBotAPI(http=self.http)
         self.cmd_manager = CommandManager(self)
         self.admin_server = BotAdminServer(self)
         self.scheduled_task_config = load_scheduled_tasks_config()
