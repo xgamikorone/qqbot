@@ -31,3 +31,47 @@ class Menu(TypedDict):
 class GlobalMenuResponse(TypedDict):
     version: int
     menu: Menu | None
+
+
+PanelScope = Literal["c2c", "group", "channel", "dm"]
+TargetType = Literal["all", "specific"]
+
+
+class VersionResponse(TypedDict):
+    version: int
+
+
+class PanelItem(TypedDict):
+    name: str
+    type: Literal["command", "link"]
+    desc: NotRequired[str]
+    only_admin: NotRequired[bool]
+    link: NotRequired[str]
+
+
+class Panel(TypedDict, total=False):
+    items: list[PanelItem]
+    remark: str
+    version: int
+
+
+class PanelCreatedResponse(TypedDict):
+    panel_id: str
+
+
+class PanelRecord(TypedDict):
+    panel_id: str
+    scope: PanelScope
+    target_type: TargetType
+    panel: Panel
+    created_at: str
+    updated_at: str
+    version: int
+    user_openids: NotRequired[list[str]]
+    group_openids: NotRequired[list[str]]
+
+
+class PanelListResponse(TypedDict):
+    records: list[PanelRecord]
+    next_cursor: str
+    is_end: bool
