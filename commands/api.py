@@ -4,6 +4,7 @@ import os
 from typing import List, Optional
 import atexit
 import asyncio
+from urllib.parse import urlsplit
 
 import aiohttp
 from dotenv import load_dotenv
@@ -15,6 +16,18 @@ load_dotenv()
 api_url = os.getenv("API_URL")
 proxy = os.getenv("PROXY")
 global_session = None
+DEFAULT_REVENUE_RANK_BASE_URL = "https://dc.yioio.top"
+
+
+def get_revenue_rank_base_url() -> str:
+    base_url = (os.getenv("REVENUE_RANK_BASE_URL", "").strip() or DEFAULT_REVENUE_RANK_BASE_URL).rstrip("/")
+    parsed = urlsplit(base_url)
+    if (
+        parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+        or parsed.password is not None or parsed.path or parsed.query or parsed.fragment
+    ):
+        raise ValueError("REVENUE_RANK_BASE_URL must be an HTTPS origin without credentials, path or query")
+    return base_url
 
 # 服务端按主播串行查询上游，批量请求需要更长的响应等待时间。
 STREAMER_COUNTS_TIMEOUT = aiohttp.ClientTimeout(
@@ -141,15 +154,14 @@ async def get_on_live_sessions():
 async def get_revenue_rank(month: str, filter: str):
     cur_month = datetime.now().strftime("%Y%m")
     is_cur_month = month == cur_month
-    if is_cur_month:
-        url = "https://dc.hihivr.top/gift"
-    else:
-        url = "https://dc.hihivr.top/gift/by_month"
     try:
+        base_url = get_revenue_rank_base_url()
+        url = base_url + ("/gift" if is_cur_month else "/gift/by_month")
         session = await get_session()
         async with session.get(
             url,
             params={"month": month, "filter": filter},
+            allow_redirects=False,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
             },
@@ -157,7 +169,11 @@ async def get_revenue_rank(month: str, filter: str):
             if response.status == 200:
                 data = await response.json()
                 return data
+            _log.warning("Revenue rank request returned HTTP %s", response.status)
             return None
+    except (ValueError, asyncio.TimeoutError):
+        _log.warning("Revenue rank configuration/response is invalid or request timed out")
+        return None
     except aiohttp.ClientError as e:
         _log.error(f"Failed to get revenue rank: {e}")
         return None
