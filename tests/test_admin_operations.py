@@ -4,6 +4,13 @@ from admin_operations import get_operation, list_operations
 
 
 class AdminOperationTests(unittest.TestCase):
+    def test_share_link_is_available_with_optional_callback(self):
+        operation = get_operation("generate_url_link")
+        self.assertEqual("generate_url_link", operation.api_method)
+        self.assertEqual(1, len(operation.fields))
+        self.assertEqual("callback_data", operation.fields[0].name)
+        self.assertFalse(operation.fields[0].required)
+
     def test_panel_configuration_uses_visual_editor(self):
         for operation_id in ("create_panel", "update_panel"):
             definition = next(item for item in get_operation(operation_id).fields if item.name == "panel")

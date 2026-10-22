@@ -61,6 +61,9 @@ PANEL_TARGET_OPERATION = field("op", "关联操作", kind="select", choices=(
 
 
 OPERATIONS: tuple[AdminOperation, ...] = (
+    AdminOperation("generate_url_link", "机器人分享", "生成分享链接", "生成邀请用户添加机器人为好友的链接；可选回传数据最多 32 字符，50 QPS。", "generate_url_link", (
+        field("callback_data", "回传数据（可选，最多 32 字符）", required=False, placeholder="custom_data_123"),
+    )),
     AdminOperation("get_global_menu", "菜单与指令面板", "查询全局菜单", "查询当前 C2C 菜单与版本，30 QPM。", "get_global_menu", ()),
     AdminOperation("update_global_menu", "菜单与指令面板", "修改全局菜单", "完整覆盖 C2C 菜单，对所有用户生效；最多 10 项，5 QPM。", "update_global_menu", (
         field("menu", "菜单配置 JSON（无需外层 menu）", kind="json", placeholder='{"items":[{"name":"帮助","type":"send_message","send_message":"/help"}]}'),

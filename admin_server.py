@@ -196,6 +196,8 @@ class BotAdminServer:
         try:
             payload = await request.json()
             result = await invoke_operation(self.client, operation, payload)
+            if operation.api_method == "generate_url_link" and result is None:
+                raise web.HTTPGatewayTimeout(text="QQ API 未返回分享链接，请稍后再试")
             if operation.category == "菜单与指令面板" and result is None:
                 raise web.HTTPGatewayTimeout(text="QQ API 未返回结果；写操作可能已生效，请先查询确认，不要直接重试")
         except json.JSONDecodeError as error:

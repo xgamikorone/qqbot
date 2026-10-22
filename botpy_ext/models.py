@@ -75,3 +75,11 @@ class PanelListResponse(TypedDict):
     records: list[PanelRecord]
     next_cursor: str
     is_end: bool
+
+
+class URLLinkData(TypedDict):
+    url: str
+
+
+class GenerateURLLinkResponse(TypedDict):
+    data: URLLinkData

@@ -3,12 +3,12 @@ from botpy.http import Route
 
 from .models import (
     GlobalMenuResponse, Menu, Panel, PanelCreatedResponse, PanelListResponse,
-    PanelRecord, PanelScope, TargetType, VersionResponse,
+    PanelRecord, PanelScope, TargetType, VersionResponse, GenerateURLLinkResponse,
 )
 
 
 class APIInputError(ValueError):
-    """Invalid menu/panel input, rejected before making an HTTP request."""
+    """Invalid extension input, rejected before making an HTTP request."""
 
 
 def _panel_route(method: str, panel_id: str, suffix: str = "") -> Route:
@@ -51,6 +51,21 @@ def _configuration(value, name: str, maximum: int) -> None:
 
 class ExtendedBotAPI(BotAPI):
     """Extend the installed BotAPI without replacing its HTTP client or credentials."""
+
+    async def generate_url_link(
+        self, callback_data: str | None = None,
+    ) -> GenerateURLLinkResponse | None:
+        """Generate a bot friend invitation URL (50 QPS).
+
+        Optional callback_data (up to 32 characters) is returned by QQ when
+        a user adds the bot via this URL. Event handling is a separate concern.
+        """
+        payload = {}
+        if callback_data is not None:
+            if not isinstance(callback_data, str) or len(callback_data) > 32:
+                raise APIInputError("callback_data 必须是字符串，最多 32 个字符")
+            payload["callback_data"] = callback_data
+        return await self._http.request(Route("POST", "/v2/generate_url_link"), json=payload)
 
     async def get_global_menu(self) -> GlobalMenuResponse | None:
         """Query GET /v2/menu (30 QPM); menu may be null before configuration.

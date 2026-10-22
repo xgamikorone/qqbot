@@ -1,5 +1,19 @@
 # botpy HTTP 接口扩展
 
+## 生成机器人分享链接
+
+```python
+result = await self.api.generate_url_link(callback_data="custom_data_123")
+if result is not None:
+    url = result["data"]["url"]
+```
+
+按官方截图对应 `POST /v2/generate_url_link`，限频 50 QPS。
+callback_data 可省略，最多 32 字符，随用户通过链接添加机器人时回传；
+不要放密钥或隐私数据。省略时发送空 JSON 对象，显式传空字符串时保留空字符串。
+响应保留 data.url 层级。复用 SDK 鉴权和错误处理，不自动调用、重试或发送链接。
+本次仅接入链接生成，不新增添加好友事件处理。尚未使用真实账号在线验证。
+
 当前本地验证版本为 qq-botpy 1.2.1，运行环境 Python 3.11 及以上。
 `botpy_ext.ExtendedBotAPI` 继承 SDK 的 `BotAPI`，增加 SDK 尚未提供的方法。
 `MyClient` 在父类初始化后，用同一个 `self.http` 创建扩展 API，原有 API 调用保持可用。

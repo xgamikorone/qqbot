@@ -54,6 +54,22 @@ class AdminServerTests(unittest.IsolatedAsyncioTestCase):
 
 
 class MenuPanelHTTPTests(unittest.IsolatedAsyncioTestCase):
+    async def test_generate_share_link_with_optional_callback(self):
+        self.request.return_value = {"data": {"url": "https://qun.qq.com/example"}}
+        for payload, expected in (({}, {}), ({"callback_data": ""}, {}), ({"callback_data": "campaign1"}, {"callback_data": "campaign1"})):
+            response = await self.browser.post("/api/operations/generate_url_link", json=payload, headers=self.headers)
+            self.assertEqual(200, response.status)
+            self.assertEqual(expected, self.request.await_args.kwargs["json"])
+            self.assertEqual("https://qun.qq.com/example", (await response.json())["result"]["data"]["url"])
+        self.request.reset_mock()
+        for payload in ({"callback_data": "x" * 33}, {"callback_data": 123}):
+            response = await self.browser.post("/api/operations/generate_url_link", json=payload, headers=self.headers)
+            self.assertEqual(400, response.status)
+        self.request.assert_not_awaited()
+        self.request.return_value = None
+        response = await self.browser.post("/api/operations/generate_url_link", json={}, headers=self.headers)
+        self.assertEqual(504, response.status)
+
     async def asyncSetUp(self):
         self.request = AsyncMock(return_value={"version": 1})
         client = SimpleNamespace(api=ExtendedBotAPI(SimpleNamespace(request=self.request)))

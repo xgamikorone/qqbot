@@ -9,6 +9,29 @@ from botpy_ext.api import APIInputError
 
 
 class ExtendedBotAPITests(unittest.IsolatedAsyncioTestCase):
+    async def test_share_link_body_limits_and_response_shape(self):
+        response = {"data": {"url": "https://qun.qq.com/example"}}
+        request = AsyncMock(return_value=response)
+        api = ExtendedBotAPI(SimpleNamespace(request=request))
+        for value, expected in ((None, {}), ("", {"callback_data": ""}), ("custom_data_123", {"callback_data": "custom_data_123"}), ("中" * 32, {"callback_data": "中" * 32})):
+            self.assertIs(response, await api.generate_url_link(value))
+            route = request.await_args.args[0]
+            self.assertEqual("POST", route.method)
+            self.assertEqual("/v2/generate_url_link", route.path)
+            self.assertEqual({"json": expected}, request.await_args.kwargs)
+        request.reset_mock()
+        for value in ("x" * 33, 123, [], True):
+            with self.assertRaises(APIInputError):
+                await api.generate_url_link(value)
+        request.assert_not_awaited()
+
+    async def test_share_link_preserves_sdk_timeout_and_error(self):
+        request = AsyncMock(side_effect=[None, RuntimeError("SDK rejected request")])
+        api = ExtendedBotAPI(SimpleNamespace(request=request))
+        self.assertIsNone(await api.generate_url_link())
+        with self.assertRaisesRegex(RuntimeError, "SDK rejected request"):
+            await api.generate_url_link()
+
     async def test_new_routes_bodies_and_pagination(self):
         cases = [
             ("update_global_menu", {"menu": {"items": []}}, "PUT", "/v2/menu", {"json": {"menu": {"items": []}}}),
