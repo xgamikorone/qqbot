@@ -7,6 +7,7 @@ from botpy import logging
 from botpy.interaction import Interaction
 from botpy.types.forum import Post
 from botpy.message import DirectMessage, GroupMessage, Message
+from botpy.user import Member
 from dotenv import load_dotenv
 
 import commands
@@ -138,6 +139,12 @@ class MyClient(botpy.Client):
 
     async def on_interaction_create(self, interaction: Interaction):
         pass
+
+    async def on_guild_member_add(self, member: Member):
+        print(member)
+
+    async def on_guild_member_remove(self, member: Member):
+        print(member)
 
 
 if __name__ == "__main__":
