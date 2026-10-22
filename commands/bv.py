@@ -55,8 +55,8 @@ class SearchBVCommand(Command):
             f"""\
                 标题: {title}
                 up主: {owner["name"]}
-                播放: {stat["view"]}, 弹幕: {stat["danmaku"]}, 点赞: {stat["like"]}
-                评论: {stat["reply"]}, 收藏: {stat["favorite"]}
+                view: {stat["view"]}, danmaku: {stat["danmaku"]}, like: {stat["like"]}
+                reply: {stat["reply"]}, favorite: {stat["favorite"]}
                 bv号: {bv}
                 发布时间: {pubdate_str}
             """
