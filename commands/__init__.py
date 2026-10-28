@@ -11,7 +11,7 @@ from . import (
     revenue_rank_v2,
     emoji,
     nickname, 
-    # chat,
+    chat,
     stats,
     online,
     guards,

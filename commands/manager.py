@@ -124,7 +124,7 @@ class CommandManager:
         # msgs[0]应该是@bot，msgs[1]应该是命令名
         # 如果命令以/开头，则去掉开头的/
         cmd_name = msgs[1].lstrip("/")
-        _log.info(f"cmd: {cmd_name}")
+        _log.info("Command received")
 
         # 没有空格的情况 拆分cmd和参数
         if cmd_name not in self.commands:

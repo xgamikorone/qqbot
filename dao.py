@@ -1,4 +1,5 @@
 from database.connection import create_connection
+from database.repositories.chat_repository import ChatRepository
 from database.repositories.chuang_repository import ChuangRepository
 from database.repositories.command_record_repository import CommandRecordRepository
 from database.repositories.nickname_repository import NicknameRepository
@@ -23,6 +24,7 @@ class Dao:
         self.nicknames = NicknameRepository(self.conn)
         self.owners = OwnerRepository(self.conn)
         self.settings = SettingsRepository(self.conn)
+        self.chat = ChatRepository(self.conn)
 
     def close(self) -> None:
         self.conn.close()

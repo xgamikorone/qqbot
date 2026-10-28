@@ -1,5 +1,6 @@
 import difflib
 import os
+import yaml
 from typing import List
 
 import botpy
@@ -14,6 +15,10 @@ import commands
 from botpy_ext import ExtendedBotAPI
 from admin_server import BotAdminServer
 from commands import CommandManager
+from chat.config import load_config as load_chat_config
+from chat.model_client import ModelClient
+from chat.service import ChatService
+from dao import get_dao
 from scheduled_jobs import (
     build_manual_scheduled_task,
     build_scheduled_tasks,
@@ -31,6 +36,13 @@ class MyClient(botpy.Client):
         super().__init__(*args, **kwargs)
         self.api = ExtendedBotAPI(http=self.http)
         self.cmd_manager = CommandManager(self)
+        self.chat_service = None
+        try:
+            chat_config = load_chat_config()
+            if chat_config.enabled:
+                self.chat_service = ChatService(chat_config, get_dao().chat, ModelClient(chat_config))
+        except (ValueError, OSError, yaml.YAMLError):
+            _log.error("聊天配置无效，聊天功能已禁用")
         self.admin_server = BotAdminServer(self)
         self.scheduled_task_config = load_scheduled_tasks_config()
         self.task_scheduler = TaskScheduler(
@@ -51,6 +63,8 @@ class MyClient(botpy.Client):
         await self.admin_server.start()
 
     async def close(self) -> None:
+        if self.chat_service is not None:
+            await self.chat_service.close()
         await self.admin_server.stop()
         await super().close()
 
@@ -76,7 +90,6 @@ class MyClient(botpy.Client):
         await self.task_scheduler.run_task(task)
 
     async def on_at_message_create(self, message: Message):
-        print(message.content)
         msgs = self.cmd_manager.normalize_msgs(message.content.split())
 
         if len(msgs) < 2:
