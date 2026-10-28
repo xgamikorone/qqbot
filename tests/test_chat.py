@@ -188,6 +188,14 @@ class ChatTests(IsolatedAsyncioTestCase):
 
 
 class ChatConfigTests(TestCase):
+    def test_prompt_restores_group_background_and_preserves_ai_identity(self):
+        config = load_config()
+        for name in ("四禧丸子", "禧运楼", "恬豆", "梨安", "沐霂", "又一"):
+            self.assertIn(name, config.prompt)
+        self.assertIn("如实说明自己是 AI 助手", config.prompt)
+        self.assertNotIn("隐藏自己的 DeepSeek 身份", config.prompt)
+        self.assertLessEqual(len(config.prompt) + config.max_input_chars, config.max_context_chars)
+
     def test_history_survives_connection_restart(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "test.db")
