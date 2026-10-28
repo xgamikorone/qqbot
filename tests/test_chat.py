@@ -188,6 +188,12 @@ class ChatTests(IsolatedAsyncioTestCase):
 
 
 class ChatConfigTests(TestCase):
+    def test_prompt_prefers_plain_text_for_channel_output(self):
+        prompt = load_config().prompt
+        self.assertIn("输出尽量使用纯文本，避免 Markdown 格式", prompt)
+        self.assertIn("当前频道无法渲染 Markdown", prompt)
+        self.assertIn("不添加反引号或代码围栏", prompt)
+
     def test_prompt_restores_group_background_and_preserves_ai_identity(self):
         config = load_config()
         for name in ("四禧丸子", "禧运楼", "恬豆", "梨安", "沐霂", "又一"):
