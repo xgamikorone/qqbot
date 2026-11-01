@@ -1,0 +1,11 @@
+enabled: false
+dry_run: true
+max_event_age_seconds: 300
+send_interval_seconds: 1
+channels: []
+# Example (IDs must be quoted strings):
+# - channel_id: "723086974"
+#   enabled: true
+#   streamer_uids: ["123456"]
+#   super_chat: {enabled: true, min_amount_cents: 3000}
+#   gift: {enabled: true, min_amount_cents: 10000, paid_only: true}

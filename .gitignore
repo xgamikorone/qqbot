@@ -8,6 +8,7 @@ replace_wife_urls.py
 *.sql
 user.db*
 sessions.json
+live_forwarding.db*
 data/cache/
 *.log
 commands/wife.py
