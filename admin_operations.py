@@ -145,9 +145,30 @@ OPERATIONS: tuple[AdminOperation, ...] = (
         GUILD_ID, CHANNEL_ID, field("api_identify", "API 标识"), field("desc", "说明"),
     )),
     AdminOperation("get_message", "消息", "获取消息", "获取指定子频道中的一条消息。", "get_message", (CHANNEL_ID, MESSAGE_ID)),
-    AdminOperation("post_message", "消息", "发送频道消息", "发送文本、图片 URL 或结构化消息。", "post_message", (
-        CHANNEL_ID, field("content", "文本内容", kind="textarea", required=False), field("image", "图片 URL", required=False), field("file_image", "本地图片", kind="file", required=False), field("embed", "Embed JSON", kind="json", required=False), field("ark", "Ark JSON", kind="json", required=False), field("markdown", "Markdown JSON", kind="json", required=False), field("keyboard", "键盘 JSON", kind="json", required=False),
-    )),
+    AdminOperation(
+        "post_message",
+        "消息",
+        "发送频道消息",
+        "发送文本、图片 URL 或结构化消息。msg_id 可留空；填写时原样提交为回复来源，"
+        "是否可回复以平台返回为准。",
+        "post_message",
+        (
+            CHANNEL_ID,
+            field("content", "文本内容", kind="textarea", required=False),
+            field(
+                "msg_id",
+                "回复消息 ID（msg_id，可选）",
+                required=False,
+                placeholder="填入要回复的消息 ID；留空保持原有发送方式",
+            ),
+            field("image", "图片 URL", required=False),
+            field("file_image", "本地图片", kind="file", required=False),
+            field("embed", "Embed JSON", kind="json", required=False),
+            field("ark", "Ark JSON", kind="json", required=False),
+            field("markdown", "Markdown JSON", kind="json", required=False),
+            field("keyboard", "键盘 JSON", kind="json", required=False),
+        ),
+    ),
     AdminOperation("post_keyboard_message", "消息", "发送键盘消息", "发送 Markdown 和内联键盘消息。", "post_keyboard_message", (
         CHANNEL_ID, field("markdown", "Markdown JSON", kind="json", required=False), field("keyboard", "键盘 JSON", kind="json", required=False),
     )),

@@ -64,6 +64,20 @@ test("ordinary fields still use inputs and textareas", () => {
   assert.equal(ui.createField({ name: "panel", kind: "json" }).children[0].tag, "textarea");
 });
 
+test("reply message ID is an optional plain text input", () => {
+  const label = loadUI().createField({
+    name: "msg_id", label: "回复消息 ID（msg_id，可选）", kind: "text",
+    required: false, placeholder: "填入要回复的消息 ID；留空保持原有发送方式",
+  });
+  const input = label.children[0];
+  assert.equal(input.tag, "input");
+  assert.equal(input.type, "text");
+  assert.equal(input.name, "msg_id");
+  assert.equal(input.required, false);
+  assert.equal(input.value, "");
+  assert.ok(input.placeholder.includes("留空"));
+});
+
 test("panel editor builds configuration without writing JSON", () => {
   const editor = loadUI().createField({ kind: "panel", label: "面板配置" });
   const row = descendants(editor).find((node) => node.className === "panel-item");
