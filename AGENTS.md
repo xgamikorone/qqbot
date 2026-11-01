@@ -21,3 +21,13 @@ Use a single-context domain documentation layout. See `docs/agents/domain.md`.
 - Never print, log, hard-code, or commit values from `.env`.
 - Send authentication as `Authorization: Bearer <token>`.
 - Before modifying the integration, read the OpenAPI contract.
+
+## Python coding style
+
+- Follow the Google Python Style Guide for new and modified Python code.
+- Add parameter and return type annotations, including async functions and tests.
+- Prefer precise types, TypedDict, and Protocol over Any; document untyped library boundaries.
+- Use Google-style docstrings for public interfaces and nontrivial behavior.
+- Use module imports, four-space indentation, and an 80-character line limit.
+- Format with YAPF using `.style.yapf`; verify types and run relevant tests.
+- Do not reformat unrelated legacy code as part of a feature change.

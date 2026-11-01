@@ -19,7 +19,7 @@ from chat.config import load_config as load_chat_config
 from chat.model_client import ModelClient
 from chat.service import ChatService
 from dao import get_dao
-from live_forwarding import LiveForwardingServer, load_config as load_forwarding_config
+import live_forwarding as forwarding
 from scheduled_jobs import (
     build_manual_scheduled_task,
     build_scheduled_tasks,
@@ -45,7 +45,10 @@ class MyClient(botpy.Client):
         except (ValueError, OSError, yaml.YAMLError):
             _log.error("聊天配置无效，聊天功能已禁用")
         self.admin_server = BotAdminServer(self)
-        self.live_forwarding = LiveForwardingServer(self.api, load_forwarding_config())
+        self.live_forwarding: forwarding.LiveForwardingServer
+        self.live_forwarding = forwarding.LiveForwardingServer(
+            self.api, forwarding.load_config()
+        )
         self.scheduled_task_config = load_scheduled_tasks_config()
         self.task_scheduler = TaskScheduler(
             timezone=self.scheduled_task_config.timezone
