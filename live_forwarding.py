@@ -17,6 +17,8 @@ from botpy import api as bot_api
 from botpy import errors as bot_errors
 import yaml
 
+import reply_sources
+
 log = logging.getLogger(__name__)
 ROOT = pathlib.Path(__file__).resolve().parent
 
@@ -325,6 +327,8 @@ class LiveForwardingServer:
         self.runner: web.AppRunner | None = None
         self.tasks: list[asyncio.Task[None]] = []
         self.wake = asyncio.Event()
+        self.reply_sources = reply_sources.ReplySources(
+            api, reply_sources.load_config())
 
     async def receive(self, request: web.Request) -> web.Response:
         """Authenticates and durably accepts a single collector event."""
@@ -357,29 +361,65 @@ class LiveForwardingServer:
                 if age > self.config["max_event_age_seconds"]:
                     self.inbox.mark(row, "expired")
                     continue
+                source = None
+                if (self.reply_sources.settings.enabled and
+                        self.reply_sources.settings.automatic_forwarding):
+                    source = await self.reply_sources.acquire(channel_id)
+                    if source is None:
+                        # Leave the delivery pending while bounded discovery
+                        # runs separately; never silently fall back to proactive.
+                        await asyncio.sleep(1)
+                        continue
                 self.inbox.mark(row, "sending")
                 try:
-                    result = await asyncio.wait_for(
-                        self.api.post_message(channel_id=channel_id,
-                                              content=format_event(
-                                                  json.loads(row["payload"]))),
-                        10)
+                    content = format_event(json.loads(row["payload"]))
+                    if source is None:
+                        send = self.api.post_message(channel_id=channel_id,
+                                                     content=content)
+                    else:
+                        send = self.api.post_message(channel_id=channel_id,
+                                                     content=content,
+                                                     msg_id=source.message_id)
+                    result = await asyncio.wait_for(send, 10)
+                    if source is not None:
+                        outcome: Literal["sent", "rejected", "unknown"]
+                        outcome = "sent" if isinstance(
+                            result, dict) and result.get("id") else "unknown"
+                        if isinstance(result, dict) and result.get("code") in (
+                                304026, 304027, 304028, 50045, 50046):
+                            outcome = "rejected"
+                        self.reply_sources.finish(source, outcome)
                     if isinstance(result, dict) and result.get("id"):
                         self.inbox.mark(row, "sent", str(result["id"]))
-                    elif isinstance(result,
-                                    dict) and result.get("code") == 304023:
+                    elif isinstance(
+                            result,
+                            dict) and result.get("code") in (304023, 304024):
                         self.inbox.mark(row, "audit")
+                    elif source is not None and isinstance(
+                            result, dict) and result.get("code") in (
+                                304026, 304027, 304028, 50045, 50046):
+                        self.inbox.mark(row, "failed")
                     else:
                         self.inbox.mark(row, "unknown")
+                    if isinstance(result, dict) and result.get("id"):
+                        self.reply_sources.observe(result)
                 except asyncio.CancelledError:
+                    if source is not None:
+                        self.reply_sources.finish(source, "unknown")
                     raise
                 except bot_errors.SequenceNumberError:
+                    if source is not None:
+                        self.reply_sources.finish(source, "rejected")
                     # Explicit 429 rejection is safe to retry, unlike a timeout.
                     self.inbox.mark(
                         row, "pending" if row["attempts"] < 8 else "failed")
                 except asyncio.TimeoutError:
+                    if source is not None:
+                        self.reply_sources.finish(source, "unknown")
                     self.inbox.mark(row, "unknown")
                 except Exception:
+                    if source is not None:
+                        self.reply_sources.finish(source, "unknown")
                     # SDK failures can mean rejection or an ambiguous outcome.
                     # Never repeat a message that might already be delivered.
                     self.inbox.mark(row, "failed")
@@ -418,6 +458,7 @@ class LiveForwardingServer:
         for task in self.tasks:
             task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
+        await self.reply_sources.close()
         if self.inbox:
             self.inbox.conn.close()
         self.runner = None

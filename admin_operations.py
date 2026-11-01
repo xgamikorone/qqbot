@@ -61,6 +61,22 @@ PANEL_TARGET_OPERATION = field("op", "关联操作", kind="select", choices=(
 
 
 OPERATIONS: tuple[AdminOperation, ...] = (
+    AdminOperation(
+        "reply_source_register", "实验消息来源", "登记消息来源种子",
+        "仅在实验已启用且频道在白名单时查询并验证种子；不发送消息。",
+        "register_seed", (GUILD_ID, CHANNEL_ID, MESSAGE_ID),
+    ),
+    AdminOperation(
+        "reply_source_probe", "实验消息来源", "有限探测消息来源",
+        "按预算查询相邻消息，不返回正文；若自动转发已启用，可使用发现的来源。",
+        "probe", (GUILD_ID,),
+        confirmation="确定执行有限消息查询？若自动转发已启用，新来源可供其使用。",
+    ),
+    AdminOperation(
+        "reply_source_status", "实验消息来源", "查看消息来源状态",
+        "查看已确认序号及来源元数据；不查询 QQ，不返回消息正文。",
+        "status", (GUILD_ID,),
+    ),
     AdminOperation("generate_url_link", "机器人分享", "生成分享链接", "生成邀请用户添加机器人为好友的链接；可选回传数据最多 32 字符，50 QPS。", "generate_url_link", (
         field("callback_data", "回传数据（可选，最多 32 字符）", required=False, placeholder="custom_data_123"),
     )),
