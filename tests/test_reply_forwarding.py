@@ -114,7 +114,14 @@ class SourceAwareForwardingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_send_uses_cross_channel_canonical_source(self) -> None:
         await self.pool.register_seed("1", "2", self.seed)
-        self.assertEqual("sent", await self.run_until_sent_attempt())
+        with self.assertLogs("botpy.live_forwarding", level="INFO") as records:
+            self.assertEqual("sent", await self.run_until_sent_attempt())
+        output = "\n".join(records.output)
+        self.assertIn("event_id=" + self.event["event_id"], output)
+        self.assertIn("mode=reply", output)
+        self.assertIn("msg_id=" + self.seed, output)
+        self.assertIn("source_channel_id=2", output)
+        self.assertNotIn("hello", output)
         call = self.api.post_message.await_args
         assert call is not None
         self.assertEqual("3", call.kwargs["channel_id"])
@@ -124,7 +131,10 @@ class SourceAwareForwardingTests(unittest.IsolatedAsyncioTestCase):
             self) -> None:
         self.pool.settings = dataclasses.replace(self.pool.settings,
                                                  automatic_forwarding=False)
-        self.assertEqual("sent", await self.run_until_sent_attempt())
+        with self.assertLogs("botpy.live_forwarding", level="INFO") as records:
+            self.assertEqual("sent", await self.run_until_sent_attempt())
+        self.assertIn("mode=proactive", "\n".join(records.output))
+        self.assertIn("msg_id=-", "\n".join(records.output))
         call = self.api.post_message.await_args
         assert call is not None
         self.assertNotIn("msg_id", call.kwargs)

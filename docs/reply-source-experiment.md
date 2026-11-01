@@ -91,6 +91,25 @@
 
 ## 存储、回滚与测试
 
+### 发送日志
+
+频道 `post_message` 使用现有 botpy 的 INFO 日志，不需要开启 SDK DEBUG：
+
+- `QQ channel send start`：记录本地 `attempt` 编号、目标 `channel_id`、
+  `mode` 和本次使用的来源 `msg_id`。
+- `QQ channel send end`：用相同 `attempt` 关联结果，记录 `status`、
+  返回的新 `message_id`，以及响应中可用的业务错误码。异常只记类型，
+  不额外记录错误正文。取消请求记为 `cancelled_unknown`。
+- `Live notification send`：额外关联直播事件 `event_id` 和来源
+  `source_channel_id`，便于追踪跨子频道来源。
+
+`mode=proactive` 表示未携带回复来源；`mode=reply` 表示携带 `msg_id`；
+`mode=event_reply` 表示只携带 QQ 事件 `event_id`。这些描述的是请求方式，
+不是平台主动额度的记账结果。日志不包含消息正文、图片内容或认证令牌。
+日志中的 ID 会限制长度并转义控制字符，不会更改实际请求参数。
+
+### 存储和回滚
+
 仅 `reply_sources.db` 保存种子 ID 和使用状态，已加入 Git 忽略规则。模块
 不保存消息正文或作者资料；原有 SDK 的调试日志可能记录 QQ 响应，测试时
 不要为了排查本功能随意开启包含消息正文的 SDK 调试日志。

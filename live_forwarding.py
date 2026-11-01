@@ -19,7 +19,7 @@ import yaml
 
 import reply_sources
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("botpy.live_forwarding")
 ROOT = pathlib.Path(__file__).resolve().parent
 
 
@@ -371,6 +371,15 @@ class LiveForwardingServer:
                         await asyncio.sleep(1)
                         continue
                 self.inbox.mark(row, "sending")
+                log.info(
+                    "Live notification send: event_id=%s channel_id=%s "
+                    "mode=%s msg_id=%s source_channel_id=%s",
+                    row["event_id"],
+                    channel_id,
+                    "reply" if source is not None else "proactive",
+                    source.message_id if source is not None else "-",
+                    source.channel_id if source is not None else "-",
+                )
                 try:
                     content = format_event(json.loads(row["payload"]))
                     if source is None:
