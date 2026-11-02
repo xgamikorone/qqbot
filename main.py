@@ -69,10 +69,11 @@ class MyClient(botpy.Client):
         await self.live_forwarding.start()
 
     async def close(self) -> None:
+        # Finish manual discovery requests before closing their storage.
+        await self.admin_server.stop()
         await self.live_forwarding.close()
         if self.chat_service is not None:
             await self.chat_service.close()
-        await self.admin_server.stop()
         await super().close()
 
     async def _send_scheduled_message(self, channel_id: str, content: str) -> None:
@@ -96,7 +97,14 @@ class MyClient(botpy.Client):
         )
         await self.task_scheduler.run_task(task)
 
-    async def on_at_message_create(self, message: Message):
+    async def on_at_message_create(self, message: Message) -> None:
+        self.live_forwarding.reply_sources.observe({
+            "id": message.id,
+            "guild_id": message.guild_id,
+            "channel_id": message.channel_id,
+            "timestamp": message.timestamp,
+            "author": {"bot": message.author.bot},
+        })
         msgs = self.cmd_manager.normalize_msgs(message.content.split())
 
         if len(msgs) < 2:

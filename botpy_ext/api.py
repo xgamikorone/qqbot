@@ -1,10 +1,23 @@
+import asyncio
+import logging
+from typing import BinaryIO, cast
+import uuid
+
 from botpy.api import BotAPI
 from botpy.http import Route
+from botpy.types import message as message_types
 
 from .models import (
     GlobalMenuResponse, Menu, Panel, PanelCreatedResponse, PanelListResponse,
     PanelRecord, PanelScope, TargetType, VersionResponse, GenerateURLLinkResponse,
 )
+
+_LOG = logging.getLogger("botpy.channel_send")
+
+
+def _log_id(value: object) -> str:
+    """Bounds untrusted IDs; callers use repr formatting to escape controls."""
+    return str(value)[:256] if value is not None and value != "" else "-"
 
 
 class APIInputError(ValueError):
@@ -51,6 +64,76 @@ def _configuration(value, name: str, maximum: int) -> None:
 
 class ExtendedBotAPI(BotAPI):
     """Extend the installed BotAPI without replacing its HTTP client or credentials."""
+
+    async def post_message(
+        self,
+        channel_id: str,
+        content: str | None = None,
+        embed: message_types.Embed | None = None,
+        ark: message_types.Ark | None = None,
+        message_reference: message_types.Reference | None = None,
+        image: str | None = None,
+        file_image: bytes | BinaryIO | str | None = None,
+        msg_id: str | None = None,
+        event_id: str | None = None,
+        markdown: message_types.MarkdownPayload | None = None,
+        keyboard: message_types.Keyboard | None = None,
+    ) -> message_types.Message | None:
+        """Sends with metadata-only attempt/result logs and no added retries.
+
+        Arguments retain the SDK interface. Mode describes the supplied reply
+        parameters, not QQ's private quota accounting. Content, image data,
+        credentials, and exception response bodies are never logged here.
+        """
+        attempt_id = uuid.uuid4().hex[:12]
+        mode = "reply" if msg_id else "event_reply" if event_id else "proactive"
+        context = (
+            attempt_id, _log_id(channel_id), mode, _log_id(msg_id),
+        )
+        _LOG.info(
+            "QQ channel send start: attempt=%s channel_id=%r "
+            "mode=%s msg_id=%r", *context,
+        )
+        try:
+            result = await super().post_message(
+                channel_id=channel_id, content=content, embed=embed, ark=ark,
+                message_reference=message_reference, image=image,
+                file_image=file_image, msg_id=msg_id, event_id=event_id,
+                markdown=markdown, keyboard=keyboard,
+            )
+        except asyncio.CancelledError:
+            _LOG.warning(
+                "QQ channel send end: attempt=%s channel_id=%r "
+                "mode=%s msg_id=%r status=cancelled_unknown", *context,
+            )
+            raise
+        except Exception as error:
+            _LOG.warning(
+                "QQ channel send end: attempt=%s channel_id=%r "
+                "mode=%s msg_id=%r status=error error_type=%s",
+                *context, type(error).__name__,
+            )
+            raise
+        # botpy's response typing does not include audit/error response bodies.
+        response = cast(object, result)
+        sent_id = response.get("id") if isinstance(response, dict) else None
+        code = response.get("code") if isinstance(response, dict) else None
+        if isinstance(sent_id, str) and sent_id:
+            status = "sent"
+        elif code in (304023, 304024):
+            status = "audit"
+        elif type(code) is int and code != 0:
+            status = "rejected"
+        else:
+            status = "unknown"
+        _LOG.info(
+            "QQ channel send end: attempt=%s channel_id=%r "
+            "mode=%s msg_id=%r status=%s message_id=%r code=%s",
+            *context, status,
+            _log_id(sent_id if isinstance(sent_id, str) else None),
+            code if type(code) is int else "-",
+        )
+        return result
 
     async def generate_url_link(
         self, callback_data: str | None = None,

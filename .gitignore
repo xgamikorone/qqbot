@@ -10,6 +10,7 @@ replace_wife_urls.py
 user.db*
 sessions.json
 live_forwarding.db*
+reply_sources.db*
 data/cache/
 *.log
 commands/wife.py

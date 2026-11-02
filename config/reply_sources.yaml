@@ -1,0 +1,18 @@
+# Experimental: enabling this allows bounded reads of configured QQ channels.
+# No network queries or storage are opened while disabled.
+enabled: false
+# Manual admin tests are independent of automatic notification delivery.
+automatic_forwarding: false
+max_source_age_seconds: 270
+max_probes_per_batch: 10
+discovery_interval_seconds: 15
+discovery_requests_per_minute: 60
+max_sequence_distance: 100
+max_uses_per_source: 1
+guilds: []
+# guilds:
+#   - guild_id: "15913006732425380356"
+#     source_channel_ids: ["723086974"]
+#     target_channel_ids: ["723086974"]
+# Register one real seed per source channel through the admin panel.
+# No proactive fallback is used while this experiment is enabled.

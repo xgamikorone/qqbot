@@ -109,13 +109,24 @@ async def invoke_operation(
         else:
             arguments[name] = decoded
 
-    api_method = getattr(client.api, operation.api_method, None)
+    if operation.id in {
+        "reply_source_register", "reply_source_probe", "reply_source_status"
+    }:
+        owner = getattr(getattr(client, "live_forwarding", None),
+                        "reply_sources", None)
+    else:
+        owner = client.api
+    api_method = getattr(owner, operation.api_method, None)
     if api_method is None or not callable(api_method):
         raise OperationInputError("当前 Bot SDK 不支持该操作")
     try:
         return await api_method(**arguments)
     except APIInputError as error:
         raise OperationInputError(str(error)) from error
+    except ValueError as error:
+        if operation.category == "实验消息来源":
+            raise OperationInputError(str(error)) from error
+        raise
 
 
 def _json_safe(value: Any) -> Any:
