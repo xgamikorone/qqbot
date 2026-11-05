@@ -8,6 +8,8 @@ from urllib import parse
 
 import aiohttp
 
+from chat import channel_text
+
 _LOG = logging.getLogger("botpy.chat_web")
 _BASE = "https://api.deepseek.com/v1/tools/"
 
@@ -73,6 +75,7 @@ class WebTools:
         self.remaining = {"web_search": max_searches, "web_fetch": max_fetches}
         self.chars_left = context_chars
         self.sources: dict[str, str] = {}
+        self.source_names: dict[str, str] = {}
         self.fetched: set[str] = set()
         self.failed = False
 
@@ -137,6 +140,9 @@ class WebTools:
                     summary = str(
                         item.get("summary") or item.get("snippet") or "")[:1200]
                     self.sources[url] = title
+                    site_name = item.get("site_name")
+                    if isinstance(site_name, str):
+                        self.source_names[url] = site_name[:100]
                     results.append({
                         "title": title,
                         "url": url,
@@ -165,12 +171,18 @@ class WebTools:
             return '{"error":"联网查询失败或参数受限；不能声称已查证"}'
 
     def citations(self) -> str:
-        """Builds plain-text citations only from actual returned URLs."""
+        """Shows verified source names and titles without sending URLs to QQ."""
         urls = [url for url in self.sources if url in self.fetched] or list(
             self.sources)
-        references = (
-            "\n\n来源：\n" +
-            "\n".join(f"{index}. {self.sources[url]} {url}"
-                      for index, url in enumerate(urls[:3], 1))) if urls else ""
+        labels = []
+        for url in urls[:3]:
+            name = channel_text.source_label(self.source_names.get(url, ""))
+            title = channel_text.source_label(self.sources[url])
+            label = " — ".join(
+                dict.fromkeys(item for item in (name, title) if item))
+            labels.append(label or "网页来源")
+        references = ("\n\n来源：\n" + "\n".join(
+            f"{index}. {label}" for index, label in enumerate(labels, 1))
+                     ) if labels else ""
         warning = "\n\n注：部分联网查询失败，未取得的资料不能视为已核实。" if self.failed else ""
         return references + warning

@@ -108,7 +108,8 @@ class ChatWebTests(unittest.IsolatedAsyncioTestCase):
             },
         ])
         self.assertIn("verified answer", result.text)
-        self.assertIn("https://example.com/news", result.text)
+        self.assertIn("News", result.text)
+        self.assertNotIn("example.com", result.text)
         self.assertEqual((6, 3), (result.input_tokens, result.output_tokens))
         requests = self.session.post.call_args_list
         self.assertEqual("https://api.deepseek.com/v1/tools/search",
@@ -129,6 +130,26 @@ class ChatWebTests(unittest.IsolatedAsyncioTestCase):
         result = await self.client.generate([])
         self.assertEqual("answer", result.text)
         self.session.post.assert_called_once()
+
+    async def test_final_answer_removes_model_urls_and_domain_only_sources(
+            self) -> None:
+        self.session.post.side_effect = [
+            response(message(None, [call("web_search", {"query": "time"})])),
+            response({
+                "results": [{
+                    "title": "time.is 当前时间",
+                    "site_name": "time.is",
+                    "url": "https://time.is/"
+                }]
+            }),
+            response(message("参考 [时钟](https://time.is/) 或 time.is，温度3.14度。")),
+        ]
+        result = await self.client.generate([])
+        self.assertNotIn("time.is", result.text)
+        self.assertNotIn("https://", result.text)
+        self.assertIn("时钟", result.text)
+        self.assertIn("当前时间", result.text)
+        self.assertIn("3.14", result.text)
 
     async def test_disabled_preserves_existing_request_format(self) -> None:
         self.client.config = config.ChatConfig()
