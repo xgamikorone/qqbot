@@ -8,3 +8,9 @@ max_pending_requests: 20
 request_timeout_seconds: 45
 daily_requests_per_user: 30
 retention_days: 7
+# Opt-in DeepSeek official Search/Fetch tools.
+web_enabled: false
+web_max_searches: 2
+web_max_fetches: 2
+web_max_context_chars: 8000
+web_timeout_seconds: 90

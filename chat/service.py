@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 import logging
 from .model_client import ChatError
 
@@ -11,7 +12,11 @@ class ChatService:
         self.closed = False
         self.slots = asyncio.Semaphore(config.max_concurrent_requests)
 
-    async def reply(self, key, user_id, text, send_reply):
+    async def reply(
+        self, key: str, user_id: str, text: str,
+        send_reply: Callable[[str], Awaitable[object]],
+    ) -> str:
+        """Runs one admitted turn under the appropriate total deadline."""
         if self.closed or len(self.tasks) >= self.config.max_pending_requests:
             raise ChatError("聊天请求繁忙，请稍后再试。")
         if key in self.tasks:
@@ -22,7 +27,9 @@ class ChatService:
         task = asyncio.create_task(self._run(key, user_id, text, version, send_reply))
         self.tasks[key] = task
         try:
-            return await asyncio.wait_for(task, timeout=self.config.request_timeout_seconds)
+            timeout = (self.config.web_timeout_seconds if self.config.web_enabled
+                       else self.config.request_timeout_seconds)
+            return await asyncio.wait_for(task, timeout=timeout)
         except asyncio.TimeoutError:
             raise ChatError("聊天等待或生成超时，请稍后再试。") from None
         except asyncio.CancelledError:
