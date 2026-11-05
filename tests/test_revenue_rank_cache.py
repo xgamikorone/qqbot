@@ -1,8 +1,7 @@
-import shutil
+import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
 
 from utils.revenue_rank_cache import (
     RevenueRankCache,
@@ -11,14 +10,14 @@ from utils.revenue_rank_cache import (
 
 
 class RevenueRankCacheTests(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        self.temp_dir = Path("tests") / f".revenue_cache_{uuid4().hex}"
-        self.temp_dir.mkdir()
+    def setUp(self) -> None:
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = Path(self._temp_dir.name)
         self.cache = RevenueRankCache(self.temp_dir)
         self.payload = {"anchors": [{"uid": 1, "total_revenue": 10}]}
 
-    def tearDown(self):
-        shutil.rmtree(self.temp_dir)
+    def tearDown(self) -> None:
+        self._temp_dir.cleanup()
 
     def test_round_trip_preserves_payload_and_metadata(self):
         cached_at = datetime(2026, 8, 25, 12, 30)

@@ -1,6 +1,7 @@
 # imgs/
 # fonts/
 *pycache*
+.venv/
 .env
 .env.*
 !.env.example

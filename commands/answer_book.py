@@ -8,7 +8,7 @@ from .base import command, Command, cooldown
 
 _log = logging.get_logger()
 
-with open("answer_book", "r") as f:
+with open("answer_book", "r", encoding="utf-8") as f:
     answer_book = f.readlines()
 answers = [line.split()[1].strip() for line in answer_book if line]
 print(f"Loaded {len(answers)} answers from answer_book.")
