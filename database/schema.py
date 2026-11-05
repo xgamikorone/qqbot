@@ -15,6 +15,18 @@ CREATE TABLE IF NOT EXISTS chat_requests (
     id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, day TEXT NOT NULL, created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chat_requests_day ON chat_requests(user_id,day);
+CREATE TABLE IF NOT EXISTS chat_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, session_key TEXT NOT NULL,
+    answer TEXT NOT NULL, answer_chars INTEGER NOT NULL,
+    model TEXT NOT NULL, input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL, status TEXT NOT NULL,
+    error_type TEXT NOT NULL DEFAULT '', error_text TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL, expires_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_deliveries_expiry
+ON chat_deliveries(expires_at);
+CREATE INDEX IF NOT EXISTS idx_chat_deliveries_session
+ON chat_deliveries(session_key);
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     uid INTEGER NOT NULL UNIQUE,

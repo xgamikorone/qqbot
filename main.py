@@ -62,7 +62,9 @@ class MyClient(botpy.Client):
         print(list(self.cmd_manager.commands.keys()))
         print(commands._command_name_to_formal_name)
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
+        if self.chat_service is not None:
+            await self.chat_service.start()
         if self.task_scheduler.start():
             _log.info("调度器已启动")
         await self.admin_server.start()

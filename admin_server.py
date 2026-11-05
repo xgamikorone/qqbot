@@ -114,17 +114,21 @@ async def invoke_operation(
     }:
         owner = getattr(getattr(client, "live_forwarding", None),
                         "reply_sources", None)
+    elif operation.id in {"chat_delivery_list", "chat_delivery_detail"}:
+        owner = getattr(client, "chat_service", None)
     else:
         owner = client.api
     api_method = getattr(owner, operation.api_method, None)
     if api_method is None or not callable(api_method):
+        if operation.category == "聊天诊断":
+            raise OperationInputError("聊天功能尚未启用，无法读取聊天诊断。")
         raise OperationInputError("当前 Bot SDK 不支持该操作")
     try:
         return await api_method(**arguments)
     except APIInputError as error:
         raise OperationInputError(str(error)) from error
     except ValueError as error:
-        if operation.category == "实验消息来源":
+        if operation.category in {"实验消息来源", "聊天诊断"}:
             raise OperationInputError(str(error)) from error
         raise
 
@@ -220,4 +224,11 @@ class BotAdminServer:
         except Exception:
             _log.exception("Admin operation failed: %s", operation.id)
             raise web.HTTPBadGateway(text="QQ API 调用失败，请查看机器人日志") from None
-        return web.json_response({"operation": operation.id, "result": _json_safe(result)})
+        headers = (
+            {"Cache-Control": "no-store"}
+            if operation.category == "聊天诊断" else None
+        )
+        return web.json_response(
+            {"operation": operation.id, "result": _json_safe(result)},
+            headers=headers,
+        )

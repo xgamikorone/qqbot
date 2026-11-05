@@ -62,6 +62,17 @@ PANEL_TARGET_OPERATION = field("op", "关联操作", kind="select", choices=(
 
 OPERATIONS: tuple[AdminOperation, ...] = (
     AdminOperation(
+        "chat_delivery_list", "聊天诊断", "聊天发送异常列表",
+        "仅列出24小时内的异常元数据，不显示回答正文。",
+        "delivery_list", (field("limit", "数量（1–100）", kind="number", required=False),),
+    ),
+    AdminOperation(
+        "chat_delivery_detail", "聊天诊断", "聊天发送异常详情",
+        "查看一条24小时内的诊断记录，包含可能敏感的回答正文；请勿转发。",
+        "delivery_detail", (field("record_id", "记录 ID", kind="number"),),
+        confirmation="诊断详情可能包含私人聊天内容，确定查看？",
+    ),
+    AdminOperation(
         "reply_source_register", "实验消息来源", "登记消息来源种子",
         "仅在实验已启用且频道在白名单时查询并验证种子；不发送消息。",
         "register_seed", (GUILD_ID, CHANNEL_ID, MESSAGE_ID),

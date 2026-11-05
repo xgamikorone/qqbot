@@ -9,7 +9,7 @@ class ChatCommand(Command):
     cn_name = "聊天"
     help = CommandHelp(title="聊天", category="工具", summary="与 AI 助手进行个人会话",
         usage="/聊天 <内容 | /reset | /stop>", examples=("/聊天 你好", "/聊天 /reset", "/聊天 /stop"),
-        details="/聊天 内容：与 AI 对话（仅管理员启用的频道）。\n/聊天 /reset：清除当前频道的个人会话，不删除备份或供应商记录。\n/聊天 /stop：取消当前生成。\n内容会发送到配置的模型供应商，请勿提交敏感信息。普通命令记录不保存聊天正文；有效历史默认保留 7 天。")
+        details="/聊天 内容：与 AI 对话（仅管理员启用的频道）。\n/聊天 /reset：清除当前频道的个人会话和本地发送诊断，不删除备份或供应商记录。\n/聊天 /stop：取消当前生成。\n内容会发送到配置的模型供应商，请勿提交敏感信息。普通命令记录不保存聊天正文；有效历史默认保留 7 天。发送异常的回答最多保留24小时供管理员排错，不进入后续聊天上下文。")
 
     async def execute(self, message, args):
         service = getattr(self.client, "chat_service", None)
