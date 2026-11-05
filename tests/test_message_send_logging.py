@@ -52,6 +52,20 @@ class MessageSendLoggingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("mode=" + mode, "\n".join(records.output))
                 self.assertIn("msg_id='-'", "\n".join(records.output))
 
+    async def test_pending_response_logs_audit_id(self) -> None:
+        self.request.return_value = {
+            "code": 304023,
+            "data": {
+                "message_audit": {
+                    "audit_id": "audit-id"
+                }
+            },
+        }
+        with self.assertLogs("botpy.channel_send", "INFO") as records:
+            await self.api.post_message("123", content="private-content")
+        self.assertIn("audit_id='audit-id'", "\n".join(records.output))
+        self.assertNotIn("private-content", "\n".join(records.output))
+
     async def test_audit_rejection_and_empty_result_are_not_logged_as_sent(
             self) -> None:
         for result, status in (({

@@ -5,6 +5,7 @@ from typing import List
 
 import botpy
 from botpy import logging
+from botpy import message as botpy_message
 from botpy.interaction import Interaction
 from botpy.types.forum import Post
 from botpy.message import DirectMessage, GroupMessage, Message
@@ -20,6 +21,8 @@ from chat.model_client import ModelClient
 from chat.service import ChatService
 from dao import get_dao
 import live_forwarding as forwarding
+import message_audits
+import task_scheduler
 from scheduled_jobs import (
     build_manual_scheduled_task,
     build_scheduled_tasks,
@@ -36,6 +39,8 @@ class MyClient(botpy.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = ExtendedBotAPI(http=self.http)
+        self.message_audits = message_audits.MessageAuditTracker(
+            get_dao().message_audits)
         self.cmd_manager = CommandManager(self)
         self.chat_service = None
         try:
@@ -78,13 +83,21 @@ class MyClient(botpy.Client):
             await self.chat_service.close()
         await super().close()
 
-    async def _send_scheduled_message(self, channel_id: str, content: str) -> None:
-        await self.api.post_message(channel_id=channel_id, content=content)
-        _log.info(
-            "已发送定时消息到 %s，长度 %d",
-            channel_id,
-            len(content),
-        )
+    async def _send_scheduled_message(self, channel_id: str,
+                                      content: str) -> None:
+        await self.message_audits.send(self.api,
+                                       task_scheduler.CURRENT_TASK_ID.get(),
+                                       channel_id, content)
+
+    async def on_message_audit_pass(self,
+                                    event: botpy_message.MessageAudit) -> None:
+        """Persists the final approved message ID from QQ."""
+        self.message_audits.record_event(event, passed=True)
+
+    async def on_message_audit_reject(
+            self, event: botpy_message.MessageAudit) -> None:
+        """Persists rejection without resending the message."""
+        self.message_audits.record_event(event, passed=False)
 
     async def run_scheduled_task(
         self,
@@ -182,6 +195,7 @@ if __name__ == "__main__":
     app_id = os.getenv("APP_ID")
     app_secret = os.getenv("SECRET")
     intents = botpy.Intents().default()
+    intents.message_audit = True
     client = MyClient(intents=intents)
 
     client.run(appid=app_id, secret=app_secret)

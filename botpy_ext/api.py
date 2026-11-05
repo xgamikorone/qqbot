@@ -6,6 +6,7 @@ import uuid
 from botpy.api import BotAPI
 from botpy.http import Route
 from botpy.types import message as message_types
+import message_audits
 
 from .models import (
     GlobalMenuResponse, Menu, Panel, PanelCreatedResponse, PanelListResponse,
@@ -128,10 +129,11 @@ class ExtendedBotAPI(BotAPI):
             status = "unknown"
         _LOG.info(
             "QQ channel send end: attempt=%s channel_id=%r "
-            "mode=%s msg_id=%r status=%s message_id=%r code=%s",
+            "mode=%s msg_id=%r status=%s message_id=%r code=%s audit_id=%r",
             *context, status,
             _log_id(sent_id if isinstance(sent_id, str) else None),
             code if type(code) is int else "-",
+            _log_id(message_audits.audit_id_from_response(response)),
         )
         return result
 

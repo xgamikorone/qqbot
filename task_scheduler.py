@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import inspect
 import logging
 from collections.abc import Awaitable, Callable, Iterable
@@ -12,8 +13,9 @@ from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-
 logger = logging.getLogger(__name__)
+CURRENT_TASK_ID: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "scheduled_task_id", default="")
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 
 TaskCallback = Callable[[], Awaitable[Any] | Any]
@@ -151,6 +153,7 @@ class TaskScheduler:
             task.id,
             task.description,
         )
+        token = CURRENT_TASK_ID.set(task.id)
         try:
             result = task.callback()
             if inspect.isawaitable(result):
@@ -158,4 +161,6 @@ class TaskScheduler:
         except Exception:
             logger.exception("scheduled task failed: id=%s", task.id)
             raise
+        finally:
+            CURRENT_TASK_ID.reset(token)
         logger.info("scheduled task completed: id=%s", task.id)
