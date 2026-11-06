@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from commands.guards import GuardsCommand, FollowersCommand
-from scheduled_jobs import generate_fans_and_guards_message
+from scheduling.jobs import generate_fans_and_guards_message
 
 
 USERS = {
@@ -55,10 +55,10 @@ class StreamersWithoutRoomsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_scheduled_report_preserves_followers_but_filters_guard_rooms(self):
         with (
-            patch.dict("scheduled_jobs.categories", {"test": [1, 2]}),
-            patch("scheduled_jobs.get_user_info_by_uids", new=AsyncMock(return_value=USERS)),
-            patch("scheduled_jobs.get_num_followers", new=AsyncMock(return_value=FANS)),
-            patch("scheduled_jobs.get_num_guards", new=AsyncMock(return_value=COUNTS)) as get_guards,
+            patch.dict("scheduling.jobs.categories", {"test": [1, 2]}),
+            patch("scheduling.jobs.get_user_info_by_uids", new=AsyncMock(return_value=USERS)),
+            patch("scheduling.jobs.get_num_followers", new=AsyncMock(return_value=FANS)),
+            patch("scheduling.jobs.get_num_guards", new=AsyncMock(return_value=COUNTS)) as get_guards,
         ):
             content = await generate_fans_and_guards_message("test")
         get_guards.assert_awaited_once_with([2], [102])

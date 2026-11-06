@@ -7,9 +7,9 @@ from live_monitor_client import (
     LiveMonitorHealth,
     MonitorComponentHealth,
 )
-from scheduled_jobs import build_scheduled_tasks
-from scheduled_task_config import ScheduledTasksConfig, TaskConfig
-from task_scheduler import CronSchedule
+from scheduling.jobs import build_scheduled_tasks
+from scheduling.config import ScheduledTasksConfig, TaskConfig
+from scheduling.scheduler import CronSchedule
 
 
 def make_config(
@@ -51,15 +51,15 @@ class DailyMaintenanceReportTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "scheduled_jobs.add_default_nicknames",
+                "scheduling.jobs.add_default_nicknames",
                 new=AsyncMock(return_value=3),
             ) as sync,
             patch(
-                "scheduled_jobs.check_live_monitor_health",
+                "scheduling.jobs.check_live_monitor_health",
                 new=AsyncMock(return_value=health),
             ) as check_health,
             patch(
-                "scheduled_jobs.build_yesterday_usage_report",
+                "scheduling.jobs.build_yesterday_usage_report",
                 return_value=usage_report,
             ) as build_usage,
         ):
@@ -85,17 +85,17 @@ class DailyMaintenanceReportTests(unittest.IsolatedAsyncioTestCase):
         sender = AsyncMock()
         with (
             patch(
-                "scheduled_jobs.add_default_nicknames",
+                "scheduling.jobs.add_default_nicknames",
                 new=AsyncMock(side_effect=RuntimeError("database unavailable")),
             ),
             patch(
-                "scheduled_jobs.check_live_monitor_health",
+                "scheduling.jobs.check_live_monitor_health",
                 new=AsyncMock(
                     side_effect=LiveMonitorError("无法连接 Live Monitor")
                 ),
             ) as check_health,
             patch(
-                "scheduled_jobs.build_yesterday_usage_report",
+                "scheduling.jobs.build_yesterday_usage_report",
                 side_effect=RuntimeError("query failed"),
             ),
         ):

@@ -2,7 +2,7 @@ import unittest
 
 from apscheduler.triggers.cron import CronTrigger
 
-from task_scheduler import CronSchedule, ScheduledTask, TaskScheduler
+from scheduling.scheduler import CronSchedule, ScheduledTask, TaskScheduler
 
 
 class FakeScheduler:

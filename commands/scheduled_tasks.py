@@ -3,7 +3,7 @@ from typing import List
 
 from botpy import logging
 from botpy.message import Message
-from scheduled_task_errors import ScheduledTaskParameterError
+from scheduling.errors import ScheduledTaskParameterError
 
 from .base import Command, command
 from .help_catalog import CommandHelp

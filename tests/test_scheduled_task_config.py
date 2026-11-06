@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scheduled_task_config import (
+from scheduling.config import (
     ScheduledTaskConfigError,
     load_scheduled_tasks_config,
 )

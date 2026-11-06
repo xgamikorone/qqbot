@@ -6,8 +6,8 @@ from commands.scheduled_tasks import (
     RunScheduledTaskCommand,
     parse_task_parameter_overrides,
 )
-from scheduled_task_errors import ScheduledTaskParameterError
-from task_scheduler import CronSchedule, ScheduledTask
+from scheduling.errors import ScheduledTaskParameterError
+from scheduling.scheduler import CronSchedule, ScheduledTask
 
 
 def make_task(task_id: str = "daily_maintenance_report") -> ScheduledTask:

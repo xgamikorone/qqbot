@@ -9,7 +9,7 @@ from unittest import mock
 from botpy import message as botpy_message
 
 import message_audits
-import task_scheduler
+from scheduling import scheduler as task_scheduler
 from database import schema
 from database.repositories import message_audit_repository
 
@@ -185,7 +185,7 @@ class MessageAuditTests(unittest.IsolatedAsyncioTestCase):
             callback=callback,
             schedule=task_scheduler.CronSchedule(hour=2))
         scheduler = task_scheduler.TaskScheduler()
-        with self.assertLogs("task_scheduler", "ERROR"):
+        with self.assertLogs("scheduling.scheduler", "ERROR"):
             with self.assertRaises(RuntimeError):
                 await scheduler.run_task(task)
         self.assertEqual("", task_scheduler.CURRENT_TASK_ID.get())

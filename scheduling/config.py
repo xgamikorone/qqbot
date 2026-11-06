@@ -8,10 +8,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
-from task_scheduler import CronSchedule
+from scheduling.scheduler import CronSchedule
 
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scheduled_tasks.yaml"
+DEFAULT_CONFIG_PATH = (Path(__file__).resolve().parent.parent / "config" /
+                       "scheduled_tasks.yaml")
 
 
 class ScheduledTaskConfigError(ValueError):

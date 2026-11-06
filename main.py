@@ -22,13 +22,13 @@ from chat.service import ChatService
 from dao import get_dao
 import live_forwarding as forwarding
 import message_audits
-import task_scheduler
-from scheduled_jobs import (
+from scheduling import scheduler as task_scheduler
+from scheduling.jobs import (
     build_manual_scheduled_task,
     build_scheduled_tasks,
 )
-from scheduled_task_config import load_scheduled_tasks_config
-from task_scheduler import TaskScheduler
+from scheduling.config import load_scheduled_tasks_config
+from scheduling.scheduler import TaskScheduler
 
 _log = logging.get_logger()
 

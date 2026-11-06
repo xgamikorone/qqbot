@@ -7,9 +7,9 @@ from commands.api import get_num_followers, get_num_guards, get_user_info_by_uid
 from commands.categories import categories
 from daily_usage_report import build_yesterday_usage_report
 from live_monitor_client import LiveMonitorError, check_live_monitor_health
-from scheduled_task_errors import ScheduledTaskParameterError
-from scheduled_task_config import ScheduledTasksConfig, TaskConfig
-from task_scheduler import ScheduledTask
+from scheduling.errors import ScheduledTaskParameterError
+from scheduling.config import ScheduledTasksConfig, TaskConfig
+from scheduling.scheduler import ScheduledTask
 from utils.streamer_rooms import split_streamer_rooms
 
 

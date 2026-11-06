@@ -2,14 +2,14 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
-from scheduled_jobs import (
+from scheduling.jobs import (
     TASK_BUILDERS,
     build_manual_scheduled_task,
     build_scheduled_tasks,
     generate_fans_and_guards_message,
 )
-from scheduled_task_config import ScheduledTasksConfig, TaskConfig
-from task_scheduler import CronSchedule, ScheduledTask
+from scheduling.config import ScheduledTasksConfig, TaskConfig
+from scheduling.scheduler import CronSchedule, ScheduledTask
 
 
 def make_config(tasks: dict[str, TaskConfig]) -> ScheduledTasksConfig:
@@ -172,7 +172,7 @@ class ScheduledMessageJobTests(unittest.IsolatedAsyncioTestCase):
         generator = AsyncMock(return_value="stats message")
 
         with patch(
-            "scheduled_jobs.generate_fans_and_guards_message", new=generator
+            "scheduling.jobs.generate_fans_and_guards_message", new=generator
         ):
             tasks = build_scheduled_tasks(config, message_sender=sender)
             await tasks[0].callback()
@@ -220,17 +220,17 @@ class ScheduledMessageJobTests(unittest.IsolatedAsyncioTestCase):
         }
 
         with (
-            patch.dict("scheduled_jobs.categories", {"test": [1, 2]}),
+            patch.dict("scheduling.jobs.categories", {"test": [1, 2]}),
             patch(
-                "scheduled_jobs.get_user_info_by_uids",
+                "scheduling.jobs.get_user_info_by_uids",
                 new=AsyncMock(return_value=user_infos),
             ),
             patch(
-                "scheduled_jobs.get_num_followers",
+                "scheduling.jobs.get_num_followers",
                 new=AsyncMock(return_value=fans_data),
             ),
             patch(
-                "scheduled_jobs.get_num_guards",
+                "scheduling.jobs.get_num_guards",
                 new=AsyncMock(return_value=guards_data),
             ) as get_guards,
         ):
