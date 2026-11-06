@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from admin_operations import get_operation
-from admin_server import BotAdminServer, OperationInputError, invoke_operation
+from admin.operations import get_operation
+from admin.server import BotAdminServer, OperationInputError, invoke_operation
 from botpy_ext import ExtendedBotAPI
 
 

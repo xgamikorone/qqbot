@@ -31,7 +31,7 @@ function loadUI() {
     document: { createElement: element, querySelector: () => element("div") },
     sessionStorage: { getItem: () => "" },
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin_ui/app.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../admin/static/app.js"), "utf8"), context);
   return context;
 }
 

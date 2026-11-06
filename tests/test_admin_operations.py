@@ -1,6 +1,6 @@
 import unittest
 
-from admin_operations import get_operation, list_operations
+from admin.operations import get_operation, list_operations
 
 
 class AdminOperationTests(unittest.TestCase):

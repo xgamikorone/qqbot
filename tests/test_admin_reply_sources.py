@@ -8,7 +8,7 @@ from unittest import mock
 from aiohttp import test_utils
 from aiohttp import web
 
-import admin_server
+from admin import server as admin_server
 import qq_message_id
 import reply_sources
 

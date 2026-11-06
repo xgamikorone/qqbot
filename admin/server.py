@@ -11,12 +11,12 @@ from typing import Any
 
 from aiohttp import web
 
-from admin_operations import AdminOperation, get_operation, list_operations
+from admin.operations import AdminOperation, get_operation, list_operations
 from botpy_ext.api import APIInputError
 
 
 _log = logging.getLogger(__name__)
-_STATIC_DIR = Path(__file__).resolve().parent / "admin_ui"
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 

@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 import commands
 from botpy_ext import ExtendedBotAPI
-from admin_server import BotAdminServer
+from admin.server import BotAdminServer
 from commands import CommandManager
 from chat.config import load_config as load_chat_config
 from chat.model_client import ModelClient

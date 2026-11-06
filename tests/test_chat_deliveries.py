@@ -10,7 +10,7 @@ from aiohttp import test_utils
 from aiohttp import web
 from botpy import errors as bot_errors
 
-import admin_server
+from admin import server as admin_server
 from chat import config
 from chat import model_client
 from chat import service
