@@ -7,6 +7,7 @@
 | `main.py` | 机器人启动、事件接收和模块装配 |
 | `commands/` | 用户命令及命令管理 |
 | `commands/manager.py` | 共用命令解析、场景分发、能力及权限检查 |
+| `commands/text_query.py` | 文本查询共用频道/群聊入口和群文本分段 |
 | `messaging/command_replies.py` | 每次事件独立的群聊/单聊回复序号 |
 | `chat/` | 聊天会话、模型调用和联网工具 |
 | `admin/server.py` | 本地管理面板 HTTP 入口与鉴权 |

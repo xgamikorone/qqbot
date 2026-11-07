@@ -13,6 +13,7 @@ from integrations.live_data import (
     get_user_info_by_uids,
     get_users_name_like,
 )
+from . import text_query
 from .base import command, Command
 from botpy.message import Message
 from typing import List
@@ -27,13 +28,16 @@ _log = logging.get_logger()
 
 
 @command("舰长", "num_guards", "航海")
-class GuardsCommand(Command):
+class GuardsCommand(text_query.TextQueryCommand):
     """查询指定主播的当前舰长数量"""
 
     name = "guards"
     cn_name = "舰长"
 
-    async def execute(self, message: Message, args: List[str]):
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Queries current guard counts, skipping accounts without rooms."""
         _log.info(f"Executing {self.name} command with args: {args}")
         if not args:
             category = "wan"
@@ -45,26 +49,22 @@ class GuardsCommand(Command):
             name_pattern = category
             users = await get_users_name_like(name_pattern)
             if not users:
-                await self.send_reply(
-                    message, f"{category}既不是已知分类，也没有找到匹配的主播！"
-                )
-                return
+                await reply(f"{category}既不是已知分类，也没有找到匹配的主播！")
+                return False
 
             uids = [user["uid"] for user in users]
         else:
             tag_id = tags_map[category]
             data = await get_tagged_streamers(tag_id)
             if data is None:
-                await self.send_reply(
-                    message, f"获取 {category} 分类主播信息失败, 请稍后再试"
-                )
-                return
+                await reply(f"获取 {category} 分类主播信息失败, 请稍后再试")
+                return False
             uids = [item["uid"] for item in data]
 
         user_infos = await get_user_info_by_uids(uids)
         if user_infos is None:
-            await self.send_reply(message, f"获取 {category} 分类主播信息失败")
-            return
+            await reply(f"获取 {category} 分类主播信息失败")
+            return False
 
         res_str = f"舰长数:\n"
         filtered_uids, room_ids, without_rooms = split_streamer_rooms(uids, user_infos)
@@ -74,18 +74,17 @@ class GuardsCommand(Command):
                 content = "舰长数：\n" + "\n".join(
                     f"{name}：暂无直播间" for name in without_rooms
                 )
-            await self.send_reply(message, content)
-            return
+            await reply(content)
+            return True
 
-        await self.send_reply(
-            message,
+        await reply(
             f"正在查询 {len(filtered_uids)} 位主播的舰长数，主播较多时可能需要等待，请稍候……",
         )
         num_guards = await get_num_guards(filtered_uids, room_ids)
         _log.info(f"num_guards: {num_guards}")
         if num_guards is None:
-            await self.send_reply(message, f"获取 {category} 分类主播舰长信息失败")
-            return
+            await reply(f"获取 {category} 分类主播舰长信息失败")
+            return False
 
         # num_guards_strs = []
         record_time = ""
@@ -97,7 +96,7 @@ class GuardsCommand(Command):
             guard_num_2 = guard_info.get("guard_num_2", None)
             guard_num_3 = guard_info.get("guard_num_3", None)
             delta = guard_info.get("delta", None)
-            name = user_infos[str(uid)]["name"]
+            name = user_infos[str(uid)].get("name") or str(uid)
             record_time = guard_info.get("record_time", "")
             delta_str = f"+{delta}" if delta is not None and delta > 0 else str(delta)
             # num_guards_str = f"{name}: {num_guards_this_uid if num_guards_this_uid is not None else '获取失败'}{' (' + delta_str + ')' if delta is not None else ''}"
@@ -116,8 +115,8 @@ class GuardsCommand(Command):
         if without_rooms:
             res_str += "\n" + "\n".join(f"{name}：暂无直播间" for name in without_rooms)
         res_str += f"\n\n对比时间: {record_time}"
-        await self.send_reply(message, res_str)
-        return
+        await reply(res_str)
+        return True
 
 
 guards_help_str = dedent(
@@ -129,7 +128,7 @@ guards_help_str = dedent(
 
 
 @command("舰长帮助", "guards_help")
-class GuardsHelpCommand(Command):
+class GuardsHelpCommand(text_query.TextQueryCommand):
     name = "guards_help"
     cn_name = "舰长帮助"
     help = CommandHelp(
@@ -140,17 +139,23 @@ class GuardsHelpCommand(Command):
         lookup_names=("舰长", "num_guards"),
     )
 
-    async def execute(self, message: Message, args: List[str]):
-        await self.send_reply(message, guards_help_str)
-        return
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Renders current-guard-count help for guilds and groups."""
+        await reply(guards_help_str)
+        return True
 
 
 @command("粉丝", "followers")
-class FollowersCommand(Command):
+class FollowersCommand(text_query.TextQueryCommand):
     name = "followers"
     cn_name = "粉丝"
 
-    async def execute(self, message: Message, args: List[str]):
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Queries followers, keeping accounts that do not have live rooms."""
         _log.info(f"Executing {self.name} command with args: {args}")
         if not args:
             category = "wan"
@@ -162,37 +167,32 @@ class FollowersCommand(Command):
             name_pattern = category
             users = await get_users_name_like(name_pattern)
             if not users:
-                await self.send_reply(
-                    message, f"{category}既不是已知分类，也没有找到匹配的主播！"
-                )
-                return
+                await reply(f"{category}既不是已知分类，也没有找到匹配的主播！")
+                return False
 
             uids = [user["uid"] for user in users]
         else:
             tag_id = tags_map[category]
             data = await get_tagged_streamers(tag_id)
             if data is None:
-                await self.send_reply(
-                    message, f"获取 {category} 分类主播信息失败, 请稍后再试"
-                )
-                return
+                await reply(f"获取 {category} 分类主播信息失败, 请稍后再试")
+                return False
             uids = [item["uid"] for item in data]
 
-        await self.send_reply(
-            message,
+        await reply(
             f"正在查询 {len(uids)} 位主播的粉丝数，主播较多时可能需要等待，请稍候……",
         )
         fans_data = await get_num_followers(uids)
         if fans_data is None:
-            await self.send_reply(message, f"获取 {category} 分类主播粉丝信息失败")
-            return
+            await reply(f"获取 {category} 分类主播粉丝信息失败")
+            return False
 
         _log.info(f"fans_data: {fans_data}")
 
         user_infos = await get_user_info_by_uids(uids)
         if user_infos is None:
-            await self.send_reply(message, f"获取 {category} 分类主播信息失败")
-            return
+            await reply(f"获取 {category} 分类主播信息失败")
+            return False
 
         res_str = f"粉丝数:\n"
         record_time = ""
@@ -207,7 +207,11 @@ class FollowersCommand(Command):
             # fans_strs.append(fans_this_uid_str)
             record_time = fans_info.get("record_time", "")
             name_followers_delta_list.append(
-                (user_infos[str(uid)]["name"], num_followers, delta_str)
+                (
+                    (user_infos.get(str(uid)) or {}).get("name") or str(uid),
+                    num_followers,
+                    delta_str,
+                )
             )
 
         name_followers_delta_list.sort(
@@ -220,8 +224,8 @@ class FollowersCommand(Command):
 
         res_str += "\n".join(fans_strs)
         res_str += f"\n\n对比时间: {record_time}"
-        await self.send_reply(message, res_str)
-        return
+        await reply(res_str)
+        return True
 
 
 followers_help_str = dedent(
@@ -233,7 +237,7 @@ followers_help_str = dedent(
 
 
 @command("粉丝帮助", "followers_help")
-class FollowersHelpCommand(Command):
+class FollowersHelpCommand(text_query.TextQueryCommand):
     name = "followers_help"
     cn_name = "粉丝帮助"
     help = CommandHelp(
@@ -244,6 +248,9 @@ class FollowersHelpCommand(Command):
         lookup_names=("粉丝", "followers"),
     )
 
-    async def execute(self, message: Message, args: List[str]):
-        await self.send_reply(message, followers_help_str)
-        return
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Renders follower-count help for guilds and groups."""
+        await reply(followers_help_str)
+        return True

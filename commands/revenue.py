@@ -1,5 +1,6 @@
 ﻿from datetime import timedelta
 from .base import command, Command, cooldown
+from . import text_query
 from dao import get_dao
 from botpy.message import Message
 from botpy import logging
@@ -647,177 +648,162 @@ class RevenueHelpCommand(Command):
 
 
 # @command("revenue_v2", "查营收v2")
+def _resolve_query_uids(value: str, limit: int) -> list[int]:
+    """Resolves a UID or shared streamer nickname, without QQ user identities."""
+    if value.isdigit() or value.lower().startswith("uid:"):
+        uid = int(
+            value[4:].strip() if value.lower().startswith("uid:") else value
+        )
+        if uid <= 0:
+            raise ValueError("UID must be positive")
+        return [uid]
+    repository = get_dao().nicknames
+    uid = repository.get_uid(value)
+    return ([uid] if uid is not None else repository.find_uids(value))[:limit]
+
+
 @command("查营收", "营收", "revenue")
-class RevenueCommandV2(Command):
+class RevenueCommandV2(text_query.TextQueryCommand):
     name = "revenue_v2"
     cn_name = "查营收v2"
     max_num_uids = 5
+    help = CommandHelp(
+        title="营收",
+        category="直播数据",
+        summary="查询主播最近一场直播营收",
+        usage="/营收 <uid或昵称>",
+        examples=("/营收 12345",),
+        details="查询最近一场直播营收，支持 UID、uid:12345、昵称和昵称模糊匹配。\n"
+        "模糊匹配最多查询 5 位主播。\n用法：/营收 <uid或昵称>",
+    )
 
-    async def execute(self, message: Message, args: List[str]):
-        _log.info(f"RevenueCommand args: {args}")
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Shares revenue queries and text rendering across guild and group."""
         if not args:
-            await self.send_reply(message, "请输入要查询的主播uid或昵称")
-            return
-        uid_or_nickname = args[0]
-        uids = []
-        if uid_or_nickname.isdigit():
-            uid = int(uid_or_nickname)
-            uids = [uid]
-        elif uid_or_nickname.lower().startswith("uid:"):
-            uid = int(uid_or_nickname[4:].strip())
-            uids = [uid]
-        else:
-            # 是昵称
-            dao = get_dao()
-            uid = dao.nicknames.get_uid(uid_or_nickname)
-            if uid is not None:
-                uids = [uid]
-            else:
-                # 模糊查找
-                uids = dao.nicknames.find_uids(uid_or_nickname)
-                # 未找到
-                if uids is None or not uids:
-                    await self.send_reply(
-                        message, f"未找到昵称为{uid_or_nickname}的主播"
-                    )
-                    return
-        _log.info(f"uids: {uids}")
-        res_str = ""
-        uids = uids[: self.max_num_uids]
+            await reply("请输入要查询的主播uid或昵称")
+            return False
+        try:
+            uids = _resolve_query_uids(args[0], self.max_num_uids)
+        except ValueError:
+            await reply("UID 格式错误，请输入正整数或 uid:正整数")
+            return False
+        if not uids:
+            await reply(f"未找到昵称为{args[0]}的主播")
+            return False
+
+        sections: list[str] = []
+        succeeded = True
         for uid in uids:
-            last_session_id = await get_last_session_id(uid)
-            _log.info(f"last_session_id: {last_session_id}")
-            name = await get_name_from_uid(uid)
-            _log.info(f"name: {name}")
-            if name is None:
-                name = uid
-            if last_session_id == ErrorCode.NO_LIVE_SESSIONS:
-                # await self.send_reply(message, f"主播{name}没有直播记录")
-                res_str += f"主播{name}没有直播记录\n\n"
-                continue
-            if last_session_id == ErrorCode.ERROR_FETCHING_DATA:
-                # await self.send_reply(message, f"查询{name}的直播数据失败")
-                res_str += f"查询{name}的直播数据失败\n\n"
-                continue
-            revenue = await get_session_revenue(last_session_id)
-            revenue = revenue["revenue"]
-            _log.info(f"revenue:\n{revenue}")
+            try:
+                last_session_id = await get_last_session_id(uid)
+                name = await get_name_from_uid(uid) or str(uid)
+                if last_session_id == ErrorCode.NO_LIVE_SESSIONS:
+                    sections.append(f"主播{name}没有直播记录")
+                    continue
+                if last_session_id == ErrorCode.ERROR_FETCHING_DATA:
+                    sections.append(f"查询{name}的直播数据失败")
+                    succeeded = False
+                    continue
 
-            session_info = await get_session_info(last_session_id)
-            _log.info(f"session_info:\n{session_info}")
-            if not session_info:
-                # await self.send_reply(message, f"查询{name}的直播数据失败")
-                res_str += f"查询{name}的直播数据失败\n\n"
-                continue
-            if not revenue:
-                # await self.send_reply(message, f"查询{name}的直播数据失败")
-                res_str += f"查询{name}的直播数据失败\n\n"
-                continue
-
-            online_members = await get_online_members(last_session_id)
-            # _log.info(f"online_members:\n{online_members}")
-            if not online_members:
-                max_online = 0
-                avg_online = 0
-            else:
-                max_online = online_members["max"]
-                avg_online = online_members["avg"]
-
-            guard_revenue = revenue.get("guards", 0)
-            gift_revenue = revenue.get("gifts", 0)
-            sc_revenue = revenue.get("super_chats", 0)
-            total = revenue.get("total", 0)
-            start_time = session_info["start_time"]
-            # erase "T" in start time 2026-03-09T21:01:38 -> 2026-03-09 21:01:38
-            start_time = start_time.replace("T", " ")
-            end_time = "" if session_info["end_time"] is None else session_info["end_time"]
-            if end_time is not None:
-                end_time = end_time.replace("T", " ")
-            res_str += (
-                f"主播{name}的最近一场直播营收:\n"
-                f"直播标题:{session_info.get('title', '')}\n"
-                f"直播时间:{start_time}~{end_time}\n"
-                f"同接(最高/平均): {max_online}/{round(avg_online)}\n"
-                f"舰队收入: {round(guard_revenue, 2)}\n"
-                f"礼物收入: {round(gift_revenue, 2)}\n"
-                f"SC收入: {round(sc_revenue, 2)}\n"
-                f"总收入: {round(total, 2)}\n\n"
-            )
-
-            await asyncio.sleep(1.0)  # 避免请求过快
-
-        await self.send_reply(message, res_str.rstrip("\n"))
+                payload = await get_session_revenue(last_session_id)
+                revenue = payload.get("revenue") if payload else None
+                session_info = await get_session_info(last_session_id)
+                if not revenue or not session_info:
+                    sections.append(f"查询{name}的直播数据失败")
+                    succeeded = False
+                    continue
+                online = await get_online_members(last_session_id) or {}
+                start_time = str(session_info.get("start_time") or "").replace(
+                    "T", " "
+                )
+                end_time = str(session_info.get("end_time") or "").replace(
+                    "T", " "
+                )
+                sections.append(
+                    f"主播{name}的最近一场直播营收:\n"
+                    f"直播标题:{session_info.get('title', '')}\n"
+                    f"直播时间:{start_time}~{end_time}\n"
+                    f"同接(最高/平均): {online.get('max') or 0}/{round(online.get('avg') or 0)}\n"
+                    f"舰队收入: {round(revenue.get('guards') or 0, 2)}\n"
+                    f"礼物收入: {round(revenue.get('gifts') or 0, 2)}\n"
+                    f"SC收入: {round(revenue.get('super_chats') or 0, 2)}\n"
+                    f"总收入: {round(revenue.get('total') or 0, 2)}"
+                )
+            except TimeoutError:
+                sections.append(f"查询主播{uid}超时，请稍后再试")
+                succeeded = False
+            finally:
+                await asyncio.sleep(1.0)  # Preserve upstream request pacing.
+        await reply("\n\n".join(sections))
+        return succeeded
 
 
 @command("super_chat_v2", "查SCv2")
-class SuperChatCommandV2(Command):
+class SuperChatCommandV2(text_query.TextQueryCommand):
     PAGE_SIZE = 10
     name = "super_chat_v2"
     cn_name = "查SCv2"
     max_num_uids = 5
+    help = CommandHelp(
+        title="查SCv2",
+        category="直播数据",
+        summary="分页查询主播收到的 SC",
+        usage="/查SCv2 <uid或昵称> [页码]",
+        examples=("/查SCv2 12345 0",),
+        details="查询主播收到的 SC，支持 UID、uid:12345、昵称和昵称模糊匹配。\n"
+        "页码从 0 开始，每页 10 条；负数按 0 处理，最多匹配 5 位主播。\n"
+        "用法：/查SCv2 <uid或昵称> [页码]",
+    )
 
-    async def execute(self, message: Message, args: List[str]):
-        _log.info(f"SuperChatCommand args: {args}")
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Retains every matched streamer's results, including empty pages."""
         if not args:
-            await self.send_reply(message, "请输入要查询的主播uid或昵称")
-            return
-        uid_or_nickname = args[0]
-        num_page = 0 if len(args) < 2 else int(args[1])
-        if num_page < 0:
-            num_page = 0
-        _log.info(f"num_page: {num_page}")
-        uids = []
-        if uid_or_nickname.isdigit():
-            uid = int(uid_or_nickname)
-            uids = [uid]
-        elif uid_or_nickname.lower().startswith("uid:"):
-            uid = int(uid_or_nickname[4:].strip())
-            uids = [uid]
-        else:
-            # 是昵称
-            dao = get_dao()
-            uid = dao.nicknames.get_uid(uid_or_nickname)
-            if uid is not None:
-                uids = [uid]
-            else:
-                # 模糊查找
-                uids = dao.nicknames.find_uids(uid_or_nickname)
-                # 未找到
-                if uids is None or not uids:
-                    await self.send_reply(
-                        message, f"未找到昵称为{uid_or_nickname}的主播"
-                    )
-                    return
-        res_str = ""
-        uids = uids[: self.max_num_uids]
+            await reply("请输入要查询的主播uid或昵称")
+            return False
+        try:
+            page = max(0, int(args[1])) if len(args) > 1 else 0
+        except ValueError:
+            await reply("页码格式错误，请输入整数；页码从 0 开始")
+            return False
+        try:
+            uids = _resolve_query_uids(args[0], self.max_num_uids)
+        except ValueError:
+            await reply("UID 格式错误，请输入正整数或 uid:正整数")
+            return False
+        if not uids:
+            await reply(f"未找到昵称为{args[0]}的主播")
+            return False
+
+        sections: list[str] = []
+        succeeded = True
         for uid in uids:
-            name = await get_name_from_uid(uid)
-            _log.info(f"uid: {uid}, name: {name}")
-            if name is None:
-                name = uid
-            super_chats = await get_super_chats(
-                uid,
-                num_page * self.PAGE_SIZE,
-                (num_page + 1) * self.PAGE_SIZE,
-            )
-            _log.info(f"super_chats:\n{super_chats}")
-
-            res_str = (
-                f"主播 {name}的最近 {num_page * self.PAGE_SIZE}~{(num_page + 1) * self.PAGE_SIZE}条SC:\n"
-                f"格式为: 用户名:SC内容;时间;价格\n"
-            )
-            # for sc in super_chats:
-            #     res_str += f"{sc['user_name']}: {sc['message']}; {sc['record_time']}; {sc['price']}\n"
-
-            res_str += "\n".join(
-                [
-                    f"{sc['user_name']}: {sc['message']}; {sc['record_time']}; {sc['price']}"
-                    for sc in super_chats
+            try:
+                name = await get_name_from_uid(uid) or str(uid)
+                records = await get_super_chats(
+                    uid, page * self.PAGE_SIZE, (page + 1) * self.PAGE_SIZE
+                )
+                if records is None:
+                    sections.append(f"查询{name}的 SC 数据失败")
+                    succeeded = False
+                    continue
+                rows = [
+                    f"{record['user_name']}: {record['message']}; "
+                    f"{record['record_time']}; {record['price']}"
+                    for record in records
                 ]
-            )
-
-            res_str += "\n\n"
-            await asyncio.sleep(1.0)  # 避免请求过快
-        await self.send_reply(message, res_str.rstrip("\n"))
-
-
+                sections.append(
+                    f"主播 {name}的最近 {page * self.PAGE_SIZE}~{(page + 1) * self.PAGE_SIZE}条SC:\n"
+                    "格式为: 用户名:SC内容;时间;价格\n"
+                    + ("\n".join(rows) if rows else "暂无SC记录")
+                )
+            except TimeoutError:
+                sections.append(f"查询主播{uid}的 SC 超时，请稍后再试")
+                succeeded = False
+            finally:
+                await asyncio.sleep(1.0)  # Preserve upstream request pacing.
+        await reply("\n\n".join(sections))
+        return succeeded

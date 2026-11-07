@@ -7,6 +7,7 @@ from .help_catalog import CommandHelp
 import aiohttp
 
 from integrations.live_data import get_on_live_sessions
+from . import text_query
 from .base import command, Command
 from botpy.message import Message
 from typing import List
@@ -59,13 +60,16 @@ def get_always_show_groups(sessions):
 
 
 @command("看谁", "高能", "gn", "同接")
-class OnlineNumberCommand(Command):
+class OnlineNumberCommand(text_query.TextQueryCommand):
     """获取在线同接数"""
 
     name = "online_number"
     cn_name = "高能"
 
-    async def execute(self, message: Message, args: List[str]):
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Queries sessions with shared filtering, ordering and result limits."""
         limit = 10
         if args:
             arg = args[0].strip().lower()
@@ -74,17 +78,17 @@ class OnlineNumberCommand(Command):
             elif arg.isdigit() and int(arg) > 0:
                 limit = int(arg)
             else:
-                await self.send_reply(message, "参数错误, 请输入正整数或 all")
-                return
+                await reply("参数错误, 请输入正整数或 all")
+                return False
 
         sessions = await get_on_live_sessions()
         if sessions is None:
-            await self.send_reply(message, "获取在线直播时发生错误！请联系作者。")
-            return
+            await reply("获取在线直播时发生错误！请联系作者。")
+            return False
 
         if not sessions:
-            await self.send_reply(message, "目前无人开播！\n如数据有误，请联系作者。")
-            return
+            await reply("目前无人开播！\n如数据有误，请联系作者。")
+            return True
 
         sessions.sort(key=lambda x: x["online_count"]
                       if x["online_count"] is not None else 0, reverse=True)
@@ -121,7 +125,8 @@ class OnlineNumberCommand(Command):
         if folded_count > 0:
             res_str += f"\n还有{folded_count}位主播的数据已折叠，可使用参数all/a显示全部，或参数n显示前n名。"
         res_str += "\n如数据有误，请联系作者。"
-        await self.send_reply(message, res_str)
+        await reply(res_str)
+        return True
 
 
 online_help_str = dedent("""\
@@ -131,7 +136,7 @@ online_help_str = dedent("""\
 
 
 @command("同接帮助", "online_help")
-class OnlineHelpCommand(Command):
+class OnlineHelpCommand(text_query.TextQueryCommand):
     name = "online_help"
     cn_name = "同接帮助"
     help = CommandHelp(
@@ -142,5 +147,9 @@ class OnlineHelpCommand(Command):
         lookup_names=("同接", "看谁", "高能", "gn"),
     )
 
-    async def execute(self, message: Message, args: List[str]):
-        await self.send_reply(message, online_help_str)
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Renders help through the current scene's text sender."""
+        await reply(online_help_str)
+        return True
