@@ -165,6 +165,38 @@ class Command:
             msg_seq=command_replies.next_sequence(message),
         )
 
+    async def reply_group_image(self, message: botpy_message.GroupMessage,
+                                content: str, image: str) -> None:
+        """Uploads an image, then replies using the event's shared sequence.
+
+        Raises:
+            command_replies.GroupImageUploadError: Upload failed; no reply was
+                attempted, so callers can safely send a text fallback.
+        """
+        group_id = command_replies.require_id(message.group_openid)
+        try:
+            media = await self.client.api.post_group_file(
+                group_openid=group_id,
+                file_type=1,
+                url=image,
+                srv_send_msg=False,
+            )
+            if not isinstance(media, dict) or not isinstance(
+                    media.get("file_info"), str) or not media["file_info"]:
+                raise ValueError("上传响应缺少 file_info")
+        except Exception as error:
+            # Only upload failures allow safe fallback. A failed send below
+            # may already have delivered the message and must not be retried.
+            raise command_replies.GroupImageUploadError("群聊图片上传失败") from error
+        await self.client.api.post_group_message(
+            group_openid=group_id,
+            msg_type=7,
+            content=content or " ",
+            media=media,
+            msg_id=message.id,
+            msg_seq=command_replies.next_sequence(message),
+        )
+
     async def reply_user(
         self, message: botpy_message.C2CMessage, content: str
     ) -> None:

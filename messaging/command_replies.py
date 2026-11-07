@@ -6,6 +6,10 @@ import dataclasses
 import typing
 
 
+class GroupImageUploadError(RuntimeError):
+    """The image upload failed before any group reply was attempted."""
+
+
 @dataclasses.dataclass
 class ReplyState:
     """Mutable sending state belonging to one incoming event."""
