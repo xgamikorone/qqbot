@@ -14,14 +14,19 @@
 | `scheduling/config.py` | 定时任务配置解析与校验 |
 | `scheduling/jobs.py` | 任务构建和具体任务逻辑 |
 | `scheduling/errors.py` | 手动执行任务的参数错误 |
+| `messaging/` | 消息审核、回复来源和消息 ID 工具 |
+| `live_forwarding/server.py` | 直播事件接收、筛选、持久化和频道推送 |
+| `integrations/live_data.py` | 原 `commands/api.py` 的外部数据请求 |
+| `integrations/live_monitor.py` | Live Monitor 健康检查 |
+| `integrations/baidu_translate.py` | 百度翻译请求与错误解释 |
 | `botpy_ext/` | QQ SDK 扩展 |
 | `database/` | 数据库结构、连接及仓储 |
 | `config/` | 原有配置文件，位置不变 |
 | `tests/` | Python 和前端离线测试 |
 | `docs/` | 功能与运维说明 |
 
-这轮只迁移管理面板和调度模块。消息模块、外部接口和资源目录暂不移动，
-避免一次改动涉及过多路径。
+已整理管理面板、调度、消息、直播转发及主要外部接口模块。
+这轮不拆分接口函数、不改变业务规则，资源目录与维护脚本暂不移动。
 
 ## 启动与部署兼容性
 
@@ -29,8 +34,15 @@
 - `.env`、`config/scheduled_tasks.yaml`、数据库位置和管理面板 URL 不变。
 - `SCHEDULED_TASKS_CONFIG` 的自定义路径语义不变。
 - 面板从包内定位静态资源；默认定时配置从仓库根目录定位。
+- 直播转发与回复来源的配置仍在 `config/` 下；
+  `live_forwarding.db` 和 `reply_sources.db` 仍在仓库根目录，不创建新库替代旧库。
 - 内部 Python 导入已更新，不保留根目录的同名转发文件。
   外部脚本若直接导入旧模块，需要改为上述新路径。
+- `message_audits`、`reply_sources`、`qq_message_id` 分别改为
+  `messaging.audits`、`messaging.reply_sources`、`messaging.message_id`。
+- 原 `live_forwarding` 模块改为 `live_forwarding.server`；
+  `live_monitor_client` 改为 `integrations.live_monitor`；
+  `utils.baidu_translate` 改为 `integrations.baidu_translate`。
 - 不需要数据库迁移；服务器更新代码后按常规重启服务。
 
 回归命令：

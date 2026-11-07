@@ -4,7 +4,7 @@ from .base import command, Command
 from botpy.message import Message
 from typing import List
 from botpy import logging
-from .api import get_bv_info
+from integrations.live_data import get_bv_info
 from textwrap import dedent
 from utils.async_retry import retry_empty
 _log = logging.get_logger()

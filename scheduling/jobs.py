@@ -3,10 +3,14 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from add_default_nicknames import add_default_nicknames
-from commands.api import get_num_followers, get_num_guards, get_user_info_by_uids
+from integrations.live_data import (
+    get_num_followers,
+    get_num_guards,
+    get_user_info_by_uids,
+)
 from commands.categories import categories
 from daily_usage_report import build_yesterday_usage_report
-from live_monitor_client import LiveMonitorError, check_live_monitor_health
+from integrations.live_monitor import LiveMonitorError, check_live_monitor_health
 from scheduling.errors import ScheduledTaskParameterError
 from scheduling.config import ScheduledTasksConfig, TaskConfig
 from scheduling.scheduler import ScheduledTask

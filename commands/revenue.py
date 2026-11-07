@@ -7,7 +7,7 @@ from typing import List
 import asyncio
 from textwrap import dedent
 from .help_catalog import CommandHelp
-from .api import (
+from integrations.live_data import (
     ErrorCode,
     get_last_session_id,
     get_session_revenue,

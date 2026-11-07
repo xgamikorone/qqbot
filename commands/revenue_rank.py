@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from matplotlib import font_manager
 from matplotlib import pyplot as plt
 
-from commands.api import get_revenue_rank
+from integrations.live_data import get_revenue_rank
 from utils.revenue_rank_cache import RevenueRankCache, fetch_revenue_rank_cached
 
 # from utils.image_client import AsyncShuimoImageClient

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 
-from commands import api
+from integrations import live_data as api
 
 
 class RevenueRankEndpointTests(unittest.IsolatedAsyncioTestCase):

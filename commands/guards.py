@@ -6,7 +6,7 @@ from textwrap import dedent
 import aiohttp
 from dotenv import load_dotenv
 
-from commands.api import (
+from integrations.live_data import (
     get_num_followers,
     get_num_guards,
     get_tagged_streamers,

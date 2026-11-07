@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from commands import api
+from integrations import live_data as api
 from commands.guards import FollowersCommand, GuardsCommand
 
 

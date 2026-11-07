@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
-from live_monitor_client import (
+from integrations.live_monitor import (
     LiveMonitorError,
     LiveMonitorHealth,
     MonitorComponentHealth,

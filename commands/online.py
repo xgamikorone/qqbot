@@ -6,7 +6,7 @@ from .help_catalog import CommandHelp
 
 import aiohttp
 
-from commands.api import get_on_live_sessions
+from integrations.live_data import get_on_live_sessions
 from .base import command, Command
 from botpy.message import Message
 from typing import List

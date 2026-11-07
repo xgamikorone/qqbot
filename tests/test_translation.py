@@ -9,7 +9,7 @@ import aiohttp
 from commands.base import _command_registry, _running_commands, last_used
 from commands.help_catalog import HelpCatalog
 from commands.translate import TranslateCommand, parse_arguments
-from utils.baidu_translate import (
+from integrations.baidu_translate import (
     ERROR_DETAILS, TRANSLATE_URL, TranslationError, TranslationResult, build_payload,
     parse_response, translate,
 )
@@ -17,7 +17,7 @@ from utils.baidu_translate import (
 
 class TranslationParsingTests(unittest.TestCase):
     def test_sign_uses_original_utf8_text_before_form_encoding(self):
-        with patch("utils.baidu_translate.secrets.token_hex", return_value="salt"):
+        with patch("integrations.baidu_translate.secrets.token_hex", return_value="salt"):
             payload = build_payload("appid", "test-key", "你好 & +\nworld", "auto", "en")
         expected = md5("appid你好 & +\nworldsalttest-key".encode("utf-8")).hexdigest()
         self.assertEqual(expected, payload["sign"])
@@ -61,7 +61,7 @@ class TranslationParsingTests(unittest.TestCase):
         for code in codes:
             for upstream_code in (code, int(code)):
                 with self.subTest(code=upstream_code):
-                    with self.assertLogs("utils.baidu_translate", level="WARNING") as logs:
+                    with self.assertLogs("integrations.baidu_translate", level="WARNING") as logs:
                         with self.assertRaises(TranslationError) as caught:
                             parse_response({"error_code": upstream_code, "error_msg": "private secret original text"})
                     meaning, advice = ERROR_DETAILS[code]
@@ -101,7 +101,7 @@ class TranslationHTTPTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_https_form_request_uses_environment_credentials(self):
         context, session, response = self.mock_session(result={"from": "en", "to": "zh", "trans_result": [{"dst": "你好"}]})
-        with patch.dict("os.environ", {"BAIDU_TRANSLATE_APP_ID": "test-app", "BAIDU_TRANSLATE_APP_KEY": "test-key"}, clear=True), patch("utils.baidu_translate.aiohttp.ClientSession", return_value=context) as factory:
+        with patch.dict("os.environ", {"BAIDU_TRANSLATE_APP_ID": "test-app", "BAIDU_TRANSLATE_APP_KEY": "test-key"}, clear=True), patch("integrations.baidu_translate.aiohttp.ClientSession", return_value=context) as factory:
             result = await translate("Hello")
         self.assertEqual("你好", result.text)
         session.post.assert_called_once()
@@ -115,7 +115,7 @@ class TranslationHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(20, factory.call_args.kwargs["timeout"].total)
 
     async def test_missing_config_and_invalid_text_do_not_call_network(self):
-        with patch.dict("os.environ", {}, clear=True), patch("utils.baidu_translate.aiohttp.ClientSession") as factory:
+        with patch.dict("os.environ", {}, clear=True), patch("integrations.baidu_translate.aiohttp.ClientSession") as factory:
             for text in ("hi", "", "中" * 1001):
                 with self.assertRaises(TranslationError):
                     await translate(text)
@@ -126,7 +126,7 @@ class TranslationHTTPTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(failure=type(failure).__name__):
                 context, session, response = self.mock_session()
                 response.json.side_effect = failure
-                with patch.dict("os.environ", {"BAIDU_TRANSLATE_APP_ID": "app", "BAIDU_TRANSLATE_APP_KEY": "key"}, clear=True), patch("utils.baidu_translate.aiohttp.ClientSession", return_value=context):
+                with patch.dict("os.environ", {"BAIDU_TRANSLATE_APP_ID": "app", "BAIDU_TRANSLATE_APP_KEY": "key"}, clear=True), patch("integrations.baidu_translate.aiohttp.ClientSession", return_value=context):
                     with self.assertRaises(TranslationError) as caught:
                         await translate("hi")
                 session.post.assert_called_once()
@@ -134,7 +134,7 @@ class TranslationHTTPTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_non_200_response_is_not_parsed(self):
         context, session, response = self.mock_session(status=503)
-        with patch.dict("os.environ", {"BAIDU_TRANSLATE_APP_ID": "app", "BAIDU_TRANSLATE_APP_KEY": "key"}, clear=True), patch("utils.baidu_translate.aiohttp.ClientSession", return_value=context):
+        with patch.dict("os.environ", {"BAIDU_TRANSLATE_APP_ID": "app", "BAIDU_TRANSLATE_APP_KEY": "key"}, clear=True), patch("integrations.baidu_translate.aiohttp.ClientSession", return_value=context):
             with self.assertRaises(TranslationError):
                 await translate("hi")
         response.json.assert_not_awaited()

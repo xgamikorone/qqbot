@@ -1,6 +1,6 @@
 # 营收排行域名迁移
 
-`commands.api.get_revenue_rank` 默认直接请求 `https://dc.yioio.top`：
+`integrations.live_data.get_revenue_rank` 默认直接请求 `https://dc.yioio.top`：
 当月走 `/gift`，历史月份走 `/gift/by_month`，保留 month/filter 参数。
 不依赖旧域名的 301 跳转，不自动跟随重定向，防止旧入口将 HTTPS 降级为 HTTP。
 

@@ -5,7 +5,7 @@ from unittest.mock import patch
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
-from live_monitor_client import (
+from integrations.live_monitor import (
     LiveMonitorError,
     check_live_monitor_health,
 )

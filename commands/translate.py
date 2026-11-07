@@ -2,7 +2,11 @@ import re
 
 from .base import Command, command, cooldown
 from .help_catalog import CommandHelp
-from utils.baidu_translate import MAX_TEXT_LENGTH, TranslationError, translate
+from integrations.baidu_translate import (
+    MAX_TEXT_LENGTH,
+    TranslationError,
+    translate,
+)
 
 
 LANGUAGE_NAMES = {
