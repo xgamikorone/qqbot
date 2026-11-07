@@ -2,7 +2,7 @@
 
 import unittest
 
-import qq_message_id as codec
+from messaging import message_id as codec
 
 _SAMPLE = "088484f5d4ffe996ebdc0110fedce5d80238ab0e48bac78ad706"
 

@@ -6,7 +6,7 @@ import uuid
 from botpy.api import BotAPI
 from botpy.http import Route
 from botpy.types import message as message_types
-import message_audits
+from messaging import audits as message_audits
 
 from .models import (
     GlobalMenuResponse, Menu, Panel, PanelCreatedResponse, PanelListResponse,

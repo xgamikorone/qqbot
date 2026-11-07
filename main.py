@@ -21,7 +21,7 @@ from chat.model_client import ModelClient
 from chat.service import ChatService
 from dao import get_dao
 import live_forwarding as forwarding
-import message_audits
+from messaging import audits as message_audits
 from scheduling import scheduler as task_scheduler
 from scheduling.jobs import (
     build_manual_scheduled_task,

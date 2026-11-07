@@ -19,9 +19,9 @@ from botpy import api as bot_api
 from botpy import errors as bot_errors
 import yaml
 
-import qq_message_id
+from messaging import message_id as qq_message_id
 
-_ROOT = pathlib.Path(__file__).resolve().parent
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
 _LOG = logging.getLogger(__name__)
 
 

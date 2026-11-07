@@ -8,8 +8,8 @@ import unittest
 from unittest import mock
 
 import live_forwarding
-import qq_message_id
-import reply_sources
+from messaging import message_id as qq_message_id
+from messaging import reply_sources
 
 
 class SourceAwareForwardingTests(unittest.IsolatedAsyncioTestCase):

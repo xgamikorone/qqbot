@@ -8,7 +8,7 @@ from unittest import mock
 
 from botpy import message as botpy_message
 
-import message_audits
+from messaging import audits as message_audits
 from scheduling import scheduler as task_scheduler
 from database import schema
 from database.repositories import message_audit_repository

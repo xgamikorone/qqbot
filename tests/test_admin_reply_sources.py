@@ -9,8 +9,8 @@ from aiohttp import test_utils
 from aiohttp import web
 
 from admin import server as admin_server
-import qq_message_id
-import reply_sources
+from messaging import message_id as qq_message_id
+from messaging import reply_sources
 
 
 class AdminReplySourceTests(unittest.IsolatedAsyncioTestCase):

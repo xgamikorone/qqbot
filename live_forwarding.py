@@ -17,7 +17,7 @@ from botpy import api as bot_api
 from botpy import errors as bot_errors
 import yaml
 
-import reply_sources
+from messaging import reply_sources
 
 log = logging.getLogger("botpy.live_forwarding")
 ROOT = pathlib.Path(__file__).resolve().parent

@@ -11,8 +11,8 @@ from unittest import mock
 
 from botpy import errors as bot_errors
 
-import qq_message_id as codec
-import reply_sources
+from messaging import message_id as codec
+from messaging import reply_sources
 
 
 def settings(**overrides: Any) -> reply_sources.Settings:
