@@ -173,6 +173,59 @@ class GroupUploadTests(unittest.IsolatedAsyncioTestCase):
                     await self.upload()
         self.session.put.assert_not_called()
 
+    async def test_single_part_starting_at_one_matches_real_response(
+            self) -> None:
+        self.api._http.request.side_effect = [
+            {
+                "upload_id":
+                    "upload",
+                "block_size":
+                    "6",
+                "parts": [{
+                    "index": 1,
+                    "block_size": "6",
+                    "presigned_url": "https://storage.invalid/1"
+                }]
+            },
+            {},
+            {
+                "file_info": "image"
+            },
+        ]
+        await self.upload()
+        self.assertEqual(b"abcdef", self.session.put.call_args.kwargs["data"])
+        confirmation = self.api._http.request.await_args_list[1].kwargs["json"]
+        self.assertEqual(1, confirmation["part_index"])
+        self.assertEqual("6", confirmation["block_size"])
+
+    async def test_unsorted_one_based_parts_preserve_ids_and_byte_offsets(
+            self) -> None:
+        self.plan["parts"][0]["index"] = 2
+        self.plan["parts"][0]["block_size"] = "4"
+        self.plan["parts"][1]["index"] = 1
+        await self.upload()
+        self.assertEqual(
+            [b"abcd", b"ef"],
+            [call.kwargs["data"] for call in self.session.put.call_args_list])
+        confirmations = self.api._http.request.await_args_list[1:3]
+        self.assertEqual(
+            [1, 2],
+            [call.kwargs["json"]["part_index"] for call in confirmations])
+        self.assertEqual(
+            ["4", "2"],
+            [call.kwargs["json"]["block_size"] for call in confirmations])
+
+    async def test_duplicate_gapped_and_invalid_start_indices_are_rejected(
+            self) -> None:
+        for indices in ((0, 0), (1, 1), (0, 2), (1, 3), (-1, 0), (2, 3)):
+            self.plan["parts"][0]["index"] = indices[1]
+            self.plan["parts"][1]["index"] = indices[0]
+            self.api._http.request.side_effect = [self.plan]
+            with self.subTest(indices=indices):
+                with self.assertRaises(ValueError):
+                    await self.upload()
+        self.session.put.assert_not_called()
+
     async def test_put_failure_never_confirms_or_merges(self) -> None:
         self.put_response.__aenter__.return_value.status = 500
         with self.assertRaises(ValueError):

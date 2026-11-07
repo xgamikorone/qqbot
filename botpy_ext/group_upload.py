@@ -112,18 +112,23 @@ def _plan(value: object, size: int) -> tuple[str, list[UploadPart]]:
     expected_count = (size + block_size - 1) // block_size
     if len(parts) != expected_count:
         raise ValueError("分片数量与文件大小不符")
-    for index, part in enumerate(parts):
-        actual_size = min(block_size, size - index * block_size)
+    first_index = parts[0].index
+    for position, part in enumerate(parts):
+        expected_index = first_index + position
+        actual_size = min(block_size, size - position * block_size)
         # The service can return the full block capacity for the final part,
         # even when the remaining file bytes do not fill that block. Never
         # pad the file: PUT and confirmation use the actual bytes remaining.
-        if part.index != index or part.size not in {actual_size, block_size}:
+        if (first_index not in {0, 1} or part.index != expected_index or
+                part.size not in {actual_size, block_size}):
             _LOG.error(
                 "分片校验失败: index=%s expected_index=%s declared_bytes=%s "
-                "actual_bytes=%s block_bytes=%s", part.index, index, part.size,
-                actual_size, block_size)
+                "actual_bytes=%s block_bytes=%s", part.index, expected_index,
+                part.size, actual_size, block_size)
             raise ValueError("分片顺序或大小与文件不符")
-        parts[index] = UploadPart(index, actual_size, part.url)
+        # Preserve the service's index for upload_part_finish. Byte offsets
+        # depend on ordered position, not on whether indices start at 0 or 1.
+        parts[position] = UploadPart(part.index, actual_size, part.url)
     return upload_id, parts
 
 
