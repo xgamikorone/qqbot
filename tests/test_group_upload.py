@@ -112,6 +112,67 @@ class GroupUploadTests(unittest.IsolatedAsyncioTestCase):
                 "srv_send_msg": False
             }, controls[3].kwargs["json"])
 
+    async def test_last_part_capacity_uses_actual_bytes_without_padding(
+            self) -> None:
+        self.plan["parts"][0]["block_size"] = "4"
+        await self.upload()
+        self.assertEqual(
+            [b"abcd", b"ef"],
+            [call.kwargs["data"] for call in self.session.put.call_args_list])
+        last = self.api._http.request.await_args_list[2].kwargs["json"]
+        self.assertEqual("2", last["block_size"])
+        self.assertEqual(hashlib.md5(b"ef").hexdigest(), last["md5"])
+
+    async def test_single_small_image_accepts_full_block_capacity(self) -> None:
+        self.api._http.request.side_effect = [
+            {
+                "upload_id":
+                    "upload",
+                "block_size":
+                    "5242880",
+                "parts": [{
+                    "index": 0,
+                    "block_size": "5242880",
+                    "presigned_url": "https://storage.invalid/0"
+                }]
+            },
+            {},
+            {
+                "file_info": "image"
+            },
+        ]
+        await self.upload()
+        self.assertEqual(b"abcdef", self.session.put.call_args.kwargs["data"])
+        self.assertEqual(
+            "6", self.api._http.request.await_args_list[1].kwargs["json"]
+            ["block_size"])
+
+    async def test_invalid_indices_and_sizes_still_fail_before_put(
+            self) -> None:
+        for index, part_size in ((1, "4"), (0, "1"), (0, "5")):
+            self.api._http.request.side_effect = [{
+                "upload_id":
+                    "upload",
+                "block_size":
+                    "4",
+                "parts": [
+                    {
+                        "index": index,
+                        "block_size": part_size,
+                        "presigned_url": "https://storage.invalid/0"
+                    },
+                    {
+                        "index": 1,
+                        "block_size": "2",
+                        "presigned_url": "https://storage.invalid/1"
+                    },
+                ],
+            }]
+            with self.subTest(index=index, part_size=part_size):
+                with self.assertRaises(ValueError):
+                    await self.upload()
+        self.session.put.assert_not_called()
+
     async def test_put_failure_never_confirms_or_merges(self) -> None:
         self.put_response.__aenter__.return_value.status = 500
         with self.assertRaises(ValueError):
