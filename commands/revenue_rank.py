@@ -12,7 +12,6 @@ import aiohttp
 import matplotlib
 import pandas as pd
 from botpy import logging
-from botpy.message import Message
 from dotenv import load_dotenv
 from matplotlib import font_manager
 from matplotlib import pyplot as plt
@@ -22,7 +21,9 @@ from utils.revenue_rank_cache import RevenueRankCache, fetch_revenue_rank_cached
 
 # from utils.image_client import AsyncShuimoImageClient
 
-from .base import Command, command, cooldown
+from .base import command
+from . import image_query
+from . import text_query
 
 load_dotenv()
 SHUIMO_TOKEN = os.getenv("SHUIMO_TOKEN", None)
@@ -516,12 +517,16 @@ def draw_rank_table(
 
 
 @command("斗虫", "revenue_rank")
-class RevenueRankCommand(Command):
+class RevenueRankCommand(image_query.ImageQueryCommand):
     name = "revenue_rank"
     cn_name = "斗虫"
 
-    @cooldown(60)
-    async def execute(self, message: Message, args: List[str]):
+    cooldown_seconds = 60
+
+    async def query_and_reply(self, args: list[str],
+                              reply: text_query.TextSender,
+                              send_image: image_query.ImageSender) -> bool:
+        """Shares existing monthly aggregation and chart rendering."""
         _log.info(f"Executing {self.name} command with args: {args}")
 
         # 初始化默认值
@@ -546,126 +551,69 @@ class RevenueRankCommand(Command):
 
         # 验证参数
         if filter not in ["vr", "psp", "all"]:
-            await self.send_reply(message, "过滤器错误，请使用vr/psp/all")
-            return
+            await reply("过滤器错误，请使用vr/psp/all")
+            return False
 
         months = parse_months(month)
         if months is None:
-            await self.send_reply(
-                message,
+            await reply(
                 "月份格式错误，请使用YYYYMM、YYYYMM,YYYYMM、YYYYMM-YYYYMM，或 本月/上月/今年/去年/近N个月",
             )
-            return
+            return False
 
         if top_n is not None:
             if not top_n.isdigit():
-                await self.send_reply(message, "显示数量错误，请使用数字")
-                return
+                await reply("显示数量错误，请使用数字")
+                return False
             top_n = int(top_n)
 
         results = await asyncio.gather(
-            *[get_revenue_rank_with_retry(month, filter) for month in months]
-        )
-        monthly_data = [
-            (month, result.data)
-            for month, result in zip(months, results)
-            if result.data is not None
-        ]
+            *[get_revenue_rank_with_retry(month, filter) for month in months])
+        monthly_data = [(month, result.data)
+                        for month, result in zip(months, results)
+                        if result.data is not None]
 
         if not monthly_data or not any(
-            len(data.get("anchors", [])) > 0 for _, data in monthly_data
-        ):
-            await self.send_reply(message, "获取数据失败，请稍后再试")
-            return
+                len(data.get("anchors", [])) > 0 for _, data in monthly_data):
+            await reply("获取数据失败，请稍后再试")
+            return False
 
         failed_months = [
-            month
-            for month, result in zip(months, results)
+            month for month, result in zip(months, results)
             if result.source == "unavailable"
         ]
-        cached_months = [
-            (month, result.cached_at)
-            for month, result in zip(months, results)
-            if result.source == "cache"
-        ]
+        cached_months = [(month, result.cached_at)
+                         for month, result in zip(months, results)
+                         if result.source == "cache"]
         if len(monthly_data) == 1:
             data = monthly_data[0][1]
         else:
             data = merge_revenue_rank(monthly_data)
         data["filter"] = filter
 
-        await self.send_reply(
-            message,
-            f"正在生成{data['month']} {filter}主播数据排行榜，请稍后……"
-            + (
-                "\n以下月份使用缓存数据: "
-                + ", ".join(
-                    f"{month}（{cached_at:%Y-%m-%d %H:%M}）"
-                    for month, cached_at in cached_months
-                    if cached_at is not None
-                )
-                if cached_months
-                else ""
-            )
-            + (
-                f"\n以下月份获取失败，已跳过: {', '.join(failed_months)}"
-                if failed_months
-                else ""
-            ),
-        )
+        await reply(
+            f"正在生成{data['month']} {filter}主播数据排行榜，请稍后……" +
+            ("\n以下月份使用缓存数据: " +
+             ", ".join(f"{month}（{cached_at:%Y-%m-%d %H:%M}）"
+                       for month, cached_at in cached_months
+                       if cached_at is not None) if cached_months else "") +
+            (f"\n以下月份获取失败，已跳过: {', '.join(failed_months)}"
+             if failed_months else ""),)
         try:
-            path = draw_rank_table(data, top_n)  # type: ignore
-            print(f"File size: {os.path.getsize(path) / 1024} KB")
+            path = await image_query.render_chart(draw_rank_table, data, top_n)
         except Exception as e:
             _log.error(f"Failed to draw rank table: {e}")
-            await self.send_reply(message, "生成排行榜失败，请稍后再试")
-            return
+            await reply("生成排行榜失败，请稍后再试")
+            return False
 
-        # 上传图片
-        # async with AsyncShuimoImageClient() as client:
-        #     result = await client.upload_image(path, folder="img")
-        #     data = result.get("data", {})
-
-        # retry = 3
-        # while retry > 0:
-        #     data = await upload_image(path, cdn_domain="cloudflareimg.cdn.sn")
-
-        #     await asyncio.sleep(1)  # 等待图片上传成功
-        #     if data is not None:
-        #         break
-        #     retry -= 1
-        # if retry == 0:
-        #     await self.send_reply(message, "上传图片失败, 请稍后再试")
-        #     return
-
-        # # 删除本地图片文件
-        # try:
-        #     os.remove(path)
-        # except Exception as e:
-        #     _log.error(f"Failed to remove local image file: {e}")
-
-        # if data is None or "url" not in data or data.get("success", False) is not True:
-        #     await self.send_reply(message, "上传图片失败, 请稍后再试")
-        #     return
-
-        # image_url = data.get("url", "")
-        retry = 3
-        while retry > 0:
-            try:
-                await self.client.api.post_message(
-                    channel_id=message.channel_id, file_image=path, msg_id=message.id
-                )
-                break
-            except Exception as e:
-                _log.error(f"Failed to send image: {e}")
-
-                retry -= 1
-        # 删除文件
         try:
-            os.remove(path)
-        except Exception as e:
-            _log.error(f"Failed to remove local image file: {e}")
-        return retry > 0
+            await send_image(path)
+            return True
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                _log.warning("清理排行榜临时图片失败")
 
 
 revenue_rank_help_str = dedent(
@@ -703,7 +651,7 @@ revenue_rank_help_str = dedent(
 
 
 @command("斗虫帮助", "revenue_rank_help")
-class RevenueRankHelpCommand(Command):
+class RevenueRankHelpCommand(text_query.TextQueryCommand):
     name = "revenue_rank_help"
     cn_name = "斗虫帮助"
     help = CommandHelp(
@@ -714,6 +662,8 @@ class RevenueRankHelpCommand(Command):
         lookup_names=("斗虫", "revenue_rank"),
     )
 
-    async def execute(self, message: Message, args: List[str]):
-        await self.send_reply(message, revenue_rank_help_str)
-        return
+    async def query_and_reply(self, args: list[str],
+                              reply: text_query.TextSender) -> bool:
+        """Shows the same usage instructions in channels and groups."""
+        await reply(revenue_rank_help_str)
+        return True

@@ -8,6 +8,7 @@
 | `commands/` | 用户命令及命令管理 |
 | `commands/manager.py` | 共用命令解析、场景分发、能力及权限检查 |
 | `commands/text_query.py` | 文本查询共用频道/群聊入口和群文本分段 |
+| `commands/image_query.py` | 图片查询共用入口、跨场景冷却及串行绘图 |
 | `messaging/command_replies.py` | 每次事件独立的群聊/单聊回复序号 |
 | `chat/` | 聊天会话、模型调用和联网工具 |
 | `admin/server.py` | 本地管理面板 HTTP 入口与鉴权 |
@@ -23,6 +24,7 @@
 | `integrations/live_monitor.py` | Live Monitor 健康检查 |
 | `integrations/baidu_translate.py` | 百度翻译请求与错误解释 |
 | `botpy_ext/` | QQ SDK 扩展 |
+| `botpy_ext/group_upload.py` | 本地群图片分片上传及合并 |
 | `database/` | 数据库结构、连接及仓储 |
 | `config/` | 原有配置文件，位置不变 |
 | `tests/` | Python 和前端离线测试 |

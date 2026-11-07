@@ -10,6 +10,7 @@ from functools import wraps
 from time import monotonic
 from .help_catalog import CommandHelp, HelpCatalog
 from messaging import command_replies
+from botpy_ext import group_upload
 
 _command_registry: Dict[str, Type["Command"]] = {}
 _log = logging.get_logger(__name__)
@@ -192,6 +193,24 @@ class Command:
             group_openid=group_id,
             msg_type=7,
             content=content or " ",
+            media=media,
+            msg_id=message.id,
+            msg_seq=command_replies.next_sequence(message),
+        )
+
+    async def reply_group_local_image(self, message: botpy_message.GroupMessage,
+                                      path: str) -> None:
+        """Uploads a local image and sends one passive rich-media reply."""
+        group_id = command_replies.require_id(message.group_openid)
+        try:
+            media = await group_upload.upload_group_image(
+                self.client.api, group_id, path)
+        except Exception as error:
+            raise command_replies.GroupImageUploadError("群聊本地图片上传失败") from error
+        await self.client.api.post_group_message(
+            group_openid=group_id,
+            msg_type=7,
+            content=" ",
             media=media,
             msg_id=message.id,
             msg_seq=command_replies.next_sequence(message),

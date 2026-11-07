@@ -7,7 +7,6 @@ import aiohttp
 import matplotlib
 import pandas as pd
 from botpy import logging
-from botpy.message import Message
 from dotenv import load_dotenv
 from matplotlib import font_manager
 from matplotlib import pyplot as plt
@@ -21,7 +20,9 @@ from utils.revenue_rank_v2 import (
     resolve_revenue_tag_id,
 )
 
-from .base import Command, command, cooldown
+from .base import command
+from . import image_query
+from . import text_query
 from .help_catalog import CommandHelp
 from .tags import tags_map
 
@@ -204,17 +205,15 @@ def draw_realtime_revenue_table(
 
 
 @command("斗虫v2", "斗虫V2", "revenue_rank_v2")
-class RevenueRankV2Command(Command):
+class RevenueRankV2Command(image_query.ImageQueryCommand):
     name = "revenue_rank_v2"
     cn_name = "斗虫v2"
     help = CommandHelp(
         title="斗虫v2",
         category="直播数据",
-        summary=(
-            "查看指定日期、月份及分类的实时营收排行榜；默认本月和 vr，"
-            "支持按月或按天查询；"
-            f"分类支持：{', '.join(REVENUE_TAG_NAMES)}"
-        ),
+        summary=("查看指定日期、月份及分类的实时营收排行榜；默认本月和 vr，"
+                 "支持按月或按天查询；"
+                 f"分类支持：{', '.join(REVENUE_TAG_NAMES)}"),
         usage="/斗虫v2 [/f 分类] [/m 月份 | /d 日期] [/n 数量]",
         examples=(
             "/斗虫v2",
@@ -227,54 +226,45 @@ class RevenueRankV2Command(Command):
         lookup_names=("斗虫v2", "revenue_rank_v2"),
     )
 
-    @cooldown(10)
-    async def execute(self, message: Message, args: list[str]):
+    cooldown_seconds = 10
+
+    async def query_and_reply(self, args: list[str],
+                              reply: text_query.TextSender,
+                              send_image: image_query.ImageSender) -> bool:
+        """Shares period queries and chart rendering across scenes."""
         try:
             options = parse_revenue_period_args(args)
         except ValueError as error:
-            await self.send_reply(message, f"参数错误：{error}\n输入 /帮助 斗虫v2 查看用法。")
-            return
+            await reply(f"参数错误：{error}\n输入 /帮助 斗虫v2 查看用法。")
+            return False
 
         try:
             tag_id = resolve_revenue_tag_id(options.tag, tags_map)
         except ValueError:
-            await self.send_reply(
-                message,
-                f"分类错误：{options.tag}\n可用分类：{', '.join(REVENUE_TAG_NAMES)}",
-            )
-            return
+            await reply(
+                f"分类错误：{options.tag}\n可用分类：{', '.join(REVENUE_TAG_NAMES)}",)
+            return False
 
-        await self.send_reply(message, "正在获取实时营收并生成斗虫 v2 排行榜，请稍候……")
+        await reply("正在获取实时营收并生成斗虫 v2 排行榜，请稍候……")
         payloads = await asyncio.gather(
-            *(
-                fetch_realtime_revenue(start, end, tag_id)
-                for start, end in options.periods
-            )
-        )
+            *(fetch_realtime_revenue(start, end, tag_id)
+              for start, end in options.periods))
         rows = merge_realtime_revenue(payloads, options.top_n)
         if not rows:
-            await self.send_reply(message, "未获取到营收数据，请稍后再试或调整时间范围。")
-            return
+            await reply("未获取到营收数据，请稍后再试或调整时间范围。")
+            return False
 
         path = None
         try:
-            path = await asyncio.to_thread(draw_realtime_revenue_table, rows, options)
-            for attempt in range(1, 4):
-                try:
-                    await self.client.api.post_message(
-                        channel_id=message.channel_id,
-                        file_image=path,
-                        msg_id=message.id,
-                    )
-                    return True
-                except Exception as error:
-                    _log.warning(f"发送斗虫 v2 图片失败 {attempt}/3: {error}")
-                    if attempt < 3:
-                        await asyncio.sleep(1)
-            await self.send_reply(message, "排行榜图片发送失败，请稍后再试。")
-        except Exception as error:
-            _log.exception(f"生成斗虫 v2 排行榜失败: {error}")
-            await self.send_reply(message, "生成排行榜失败，请稍后再试。")
+            path = await image_query.render_chart(draw_realtime_revenue_table,
+                                                  rows, options)
+        except Exception:
+            _log.warning("生成斗虫 v2 排行榜失败")
+            await reply("生成排行榜失败，请稍后再试。")
+            return False
+        try:
+            await send_image(path)
+            return True
         finally:
             if path and os.path.isfile(path):
                 try:
