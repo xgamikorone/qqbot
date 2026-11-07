@@ -6,6 +6,8 @@
 | --- | --- |
 | `main.py` | 机器人启动、事件接收和模块装配 |
 | `commands/` | 用户命令及命令管理 |
+| `commands/manager.py` | 共用命令解析、场景分发、能力及权限检查 |
+| `messaging/command_replies.py` | 每次事件独立的群聊/单聊回复序号 |
 | `chat/` | 聊天会话、模型调用和联网工具 |
 | `admin/server.py` | 本地管理面板 HTTP 入口与鉴权 |
 | `admin/operations.py` | 面板可调用操作的白名单 |
@@ -26,6 +28,7 @@
 | `docs/` | 功能与运维说明 |
 
 已整理管理面板、调度、消息、直播转发及主要外部接口模块。
+群聊命令的支持范围、数据隔离和迁移规则见[群聊命令接入](group-commands.md)。
 这轮不拆分接口函数、不改变业务规则，资源目录与维护脚本暂不移动。
 
 ## 启动与部署兼容性
@@ -43,7 +46,8 @@
 - 原 `live_forwarding` 模块改为 `live_forwarding.server`；
   `live_monitor_client` 改为 `integrations.live_monitor`；
   `utils.baidu_translate` 改为 `integrations.baidu_translate`。
-- 不需要数据库迁移；服务器更新代码后按常规重启服务。
+- 原频道模块整理不需要数据库迁移。群聊接入会增量创建独立表，
+  不改写旧频道数据，见[群聊命令接入](group-commands.md)。
 
 回归命令：
 

@@ -1,6 +1,8 @@
 from database.connection import create_connection
 from database.repositories.chat_repository import ChatRepository
 from database.repositories import message_audit_repository
+from database.repositories import group_repository
+from database.repositories import c2c_repository
 from database.repositories.chuang_repository import ChuangRepository
 from database.repositories.command_record_repository import CommandRecordRepository
 from database.repositories.nickname_repository import NicknameRepository
@@ -26,6 +28,8 @@ class Dao:
         self.owners = OwnerRepository(self.conn)
         self.settings = SettingsRepository(self.conn)
         self.chat = ChatRepository(self.conn)
+        self.groups = group_repository.GroupRepository(self.conn)
+        self.c2c = c2c_repository.C2CRepository(self.conn)
         self.message_audits = message_audit_repository.MessageAuditRepository(
             self.conn)
 

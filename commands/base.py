@@ -1,5 +1,6 @@
 from typing import Dict, Type, List
-from abc import ABC, abstractmethod
+import typing
+from botpy import message as botpy_message
 from botpy.client import Client
 from botpy.message import Message
 from botpy import logging
@@ -7,7 +8,8 @@ from dao import get_dao
 from collections import defaultdict
 from functools import wraps
 from time import monotonic
-from .help_catalog import CommandHelp
+from .help_catalog import CommandHelp, HelpCatalog
+from messaging import command_replies
 
 _command_registry: Dict[str, Type["Command"]] = {}
 _log = logging.get_logger(__name__)
@@ -63,24 +65,86 @@ def command(*aliases: str):
     return decorator
 
 
-class Command(ABC):
+Scene = typing.Literal["guild", "group", "user"]
+
+
+class UnsupportedSceneError(ValueError):
+    """A command has not implemented the requested messaging scene."""
+
+
+def render_scene_help(
+    scene: Scene, query: str | None = None, *, include_owner: bool = False
+) -> str:
+    """Uses the same scene support policy as command dispatch."""
+    registry = {
+        alias: cls
+        for alias, cls in _command_registry.items()
+        if cls.supports_scene(scene)
+    }
+    return HelpCatalog(registry).render(query, include_owner=include_owner)
+
+
+class Command:
     """所有命令的基类"""
     name = "base"
     cn_name = "基础命令"
     owner_only = False
     hidden = False
+    supported_scenes: typing.ClassVar[frozenset[Scene]] = frozenset({"guild"})
     help: CommandHelp | None = None
 
     def __init__(self, client: Client):
         self.client = client
 
-    @abstractmethod
-    async def execute(self, message: Message, args: List[str]):
-        """执行命令"""
-        pass
+    async def execute(self, message: Message, args: List[str]) -> bool | None:
+        """Legacy channel entry; new commands implement execute_guild instead."""
+        raise UnsupportedSceneError("暂不支持频道")
 
-    async def send_reply(self, message: Message, content: str, is_reply: bool = True):
+    async def execute_guild(
+        self, message: Message, args: list[str]
+    ) -> bool | None:
+        """Keeps existing channel-only command implementations working."""
+        return await self.execute(message, args)
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool | None:
+        """Handles the original group event, when explicitly supported."""
+        raise UnsupportedSceneError("暂不支持群聊")
+
+    async def execute_user(
+        self, message: botpy_message.C2CMessage, args: list[str]
+    ) -> bool | None:
+        """Handles C2C events, distinct from channel DirectMessage events."""
+        raise UnsupportedSceneError("暂不支持单聊")
+
+    @classmethod
+    def supports_scene(cls, scene: Scene) -> bool:
+        """Requires both a declaration and a non-default implementation."""
+        if scene not in cls.supported_scenes:
+            return False
+        if scene == "guild":
+            return (
+                cls.execute_guild is not Command.execute_guild
+                or cls.execute is not Command.execute
+            )
+        return getattr(cls, f"execute_{scene}") is not getattr(
+            Command, f"execute_{scene}"
+        )
+
+    async def send_reply(
+        self,
+        message: Message,
+        content: str,
+        is_reply: bool = True,
+    ) -> None:
         """统一的回复方法"""
+        await self.reply_guild(message, content, is_reply=is_reply)
+
+    async def reply_guild(
+        self, message: Message, content: str, is_reply: bool = True
+    ) -> None:
+        """Replies using the original channel and message identifiers."""
         if is_reply:
             await self.client.api.post_message(
                 channel_id=message.channel_id, content=content, msg_id=message.id
@@ -89,6 +153,73 @@ class Command(ABC):
             await self.client.api.post_message(
                 channel_id=message.channel_id, content=content
             )
+
+    async def reply_group(
+        self, message: botpy_message.GroupMessage, content: str
+    ) -> None:
+        """Uses this incoming event's shared sequence, never instance state."""
+        await self.client.api.post_group_message(
+            group_openid=command_replies.require_id(message.group_openid),
+            content=content,
+            msg_id=message.id,
+            msg_seq=command_replies.next_sequence(message),
+        )
+
+    async def reply_user(
+        self, message: botpy_message.C2CMessage, content: str
+    ) -> None:
+        """Replies to C2C using user_openid, not a channel DM guild ID."""
+        sequence = command_replies.next_sequence(message)
+        await self.client.api.post_c2c_message(
+            openid=message.author.user_openid,
+            content=content,
+            msg_id=message.id,
+            # qq-botpy 1.2.1 annotates this as str, but its default is int 1.
+            msg_seq=sequence,  # pyright: ignore[reportArgumentType]
+        )
+
+    async def after_execute_guild(
+        self, message: Message, args: list[str]
+    ) -> None:
+        """Preserves legacy hooks, including chat's content retention policy."""
+        await self.after_execute(message, args)
+
+    async def after_execute_group(
+        self,
+        message: botpy_message.GroupMessage,
+        args: list[str],
+        *,
+        command_index: int,
+        succeeded: bool,
+    ) -> None:
+        """Stores group identities without invoking channel record hooks."""
+        name = getattr(message.author, "username", "")
+        get_dao().groups.record_command(
+            group_openid=command_replies.require_id(message.group_openid),
+            member_openid=message.author.member_openid,
+            display_name=name if isinstance(name, str) else "",
+            message_id=message.id,
+            command_name=self.name,
+            command_index=command_index,
+            succeeded=succeeded,
+        )
+
+    async def after_execute_user(
+        self,
+        message: botpy_message.C2CMessage,
+        args: list[str],
+        *,
+        command_index: int,
+        succeeded: bool,
+    ) -> None:
+        """Records C2C usage without storing private message content."""
+        get_dao().c2c.record_command(
+            user_openid=message.author.user_openid,
+            message_id=message.id,
+            command_name=self.name,
+            command_index=command_index,
+            succeeded=succeeded,
+        )
 
     async def after_execute(self, message: Message, args: List[str]):
         """命令执行后执行的操作"""
@@ -109,4 +240,3 @@ class Command(ABC):
             command_name=self.name,
             command_args=" ".join(args),
         )
-

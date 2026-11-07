@@ -14,7 +14,9 @@
 
 - Use Python 3.11 as documented in `requirements.txt`, with a local virtual
   environment. Install runtime dependencies from that file.
-- YAPF and mypy are separate development tools; Node.js runs the frontend tests.
+- Black and Pyright are separate development tools. Prefer command-line
+  checks; Pylance in VS Code provides live diagnostics using the shared
+  Pyright configuration. Node.js runs the frontend tests.
 - Do not hard-code a developer's Python executable, username, or absolute path
   in project code, scripts, or instructions.
 - Default to offline tests. Run the relevant tests during development and the
@@ -25,8 +27,11 @@
   node --test tests/admin_ui.test.cjs
   ```
 
-- Format only changed Python code with `.style.yapf` and type-check affected
-  modules. Report the scope checked and any pre-existing failures accurately.
+- Format only changed Python code with Black using `pyproject.toml`; check
+  affected modules with `python -m pyright`. Prefer CLI tools over UI
+  automation whenever they support the task. Report the scope checked and
+  any pre-existing failures accurately; distinguish Pyright CLI results
+  from Pylance editor diagnostics.
 - Documentation-only edits require link/path and diff checks, not a full test
   run, unless they also change executable configuration or behavior.
 
@@ -81,5 +86,6 @@ Use a single-context domain documentation layout. See `docs/agents/domain.md`.
 - Prefer precise types, TypedDict, and Protocol over Any; document untyped library boundaries.
 - Use Google-style docstrings for public interfaces and nontrivial behavior.
 - Use module imports, four-space indentation, and an 80-character line limit.
-- Format with YAPF using `.style.yapf`; verify types and run relevant tests.
+- Format with Black using `pyproject.toml`; run Pyright and
+  relevant tests.
 - Do not reformat unrelated legacy code as part of a feature change.

@@ -6,7 +6,8 @@
 ## 环境准备
 
 安装 Git、Python 3.11 和支持 `node --test` 的 Node.js。
-`requirements.txt` 记录运行时依赖；YAPF、mypy 是单独安装的开发工具。
+`requirements.txt` 记录运行时依赖；Black、Pyright 是单独安装的开发工具。
+优先通过命令行检查；VS Code 中的 Microsoft Pylance 扩展用于实时提示。
 不要复制旧电脑的虚拟环境，也不要依赖某台电脑的 Conda 环境路径。
 
 克隆仓库或在已有仓库中确认分支、远端和工作区状态后，再同步代码。
@@ -18,7 +19,7 @@ Windows PowerShell：
 python --version
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install yapf mypy
+.\.venv\Scripts\python.exe -m pip install black pyright
 ```
 
 Linux/macOS：
@@ -26,7 +27,7 @@ Linux/macOS：
 ```sh
 python3.11 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m pip install yapf mypy
+.venv/bin/python -m pip install black pyright
 ```
 
 可以激活虚拟环境后使用下文的 `python`，或直接使用上述虚拟环境中的
@@ -60,13 +61,23 @@ git diff --check
 修改 Python 时对具体文件执行格式和类型检查，例如：
 
 ```text
-python -m yapf --style=.style.yapf --diff messaging/audits.py
-python -m mypy --follow-imports=silent --ignore-missing-imports --strict messaging/audits.py
+python -m black --check --diff messaging/audits.py
+python -m pyright messaging/audits.py
 ```
 
-确认格式差异后，可用 YAPF 的 `-i` 替换 `--diff` 写回文件；只格式化本轮
-修改的范围，不要为了迁移目录重新格式化整个遗留模块。
-以上类型检查命令是单模块示例，不代表整个仓库已经通过严格类型检查。
+确认格式差异后，运行 `python -m black <文件>` 写回；Black 从根目录的
+`pyproject.toml` 读取 Python 3.11 和 80 列配置。对遗留文件的小范围改动，
+可用 `--line-ranges START-END` 限定修改范围，不批量重排无关代码。
+
+Pyright 与 Pylance 共用 `pyproject.toml` 中的类型检查配置，默认使用
+Python 3.11、仓库内 `.venv` 和 `basic` 模式。运行 `python -m pyright`
+可检查全项目；日常优先传入受影响文件，避免把无关历史告警当成本次引入。
+
+在 VS Code 选择本地 `.venv` 解释器，Pylance 用于实时提示；只有需要核对
+编辑器特有行为时再查看 Problems 面板。能通过命令行完成的检查不依赖
+界面自动化。交接时明确实际工具、检查范围和已有问题；不将 Pyright CLI
+结果冒称为 Pylance 诊断。Black 负责格式，Pyright/Pylance 负责类型、导入
+等诊断，两者不替代 Google 风格 docstring 等人工审查。
 
 ## 在另一台电脑继续使用 Codex
 

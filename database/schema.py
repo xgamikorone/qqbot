@@ -2,6 +2,36 @@ import sqlite3
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS c2c_command_records (
+    id INTEGER PRIMARY KEY,
+    user_openid TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    command_name TEXT NOT NULL,
+    command_index INTEGER NOT NULL,
+    succeeded INTEGER NOT NULL CHECK (succeeded IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_openid, message_id, command_index)
+);
+CREATE TABLE IF NOT EXISTS group_members (
+    group_openid TEXT NOT NULL,
+    member_openid TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_openid, member_openid)
+);
+CREATE TABLE IF NOT EXISTS group_command_records (
+    id INTEGER PRIMARY KEY,
+    group_openid TEXT NOT NULL,
+    member_openid TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    command_name TEXT NOT NULL,
+    command_index INTEGER NOT NULL,
+    succeeded INTEGER NOT NULL CHECK (succeeded IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (group_openid, message_id, command_index)
+);
+CREATE INDEX IF NOT EXISTS idx_group_command_member
+ON group_command_records(group_openid, member_openid, created_at);
 CREATE TABLE IF NOT EXISTS scheduled_message_sends (
     attempt_id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL,

@@ -40,13 +40,16 @@ class MyClient(botpy.Client):
         super().__init__(*args, **kwargs)
         self.api = ExtendedBotAPI(http=self.http)
         self.message_audits = message_audits.MessageAuditTracker(
-            get_dao().message_audits)
+            get_dao().message_audits
+        )
         self.cmd_manager = CommandManager(self)
         self.chat_service = None
         try:
             chat_config = load_chat_config()
             if chat_config.enabled:
-                self.chat_service = ChatService(chat_config, get_dao().chat, ModelClient(chat_config))
+                self.chat_service = ChatService(
+                    chat_config, get_dao().chat, ModelClient(chat_config)
+                )
         except (ValueError, OSError, yaml.YAMLError):
             _log.error("聊天配置无效，聊天功能已禁用")
         self.admin_server = BotAdminServer(self)
@@ -83,19 +86,22 @@ class MyClient(botpy.Client):
             await self.chat_service.close()
         await super().close()
 
-    async def _send_scheduled_message(self, channel_id: str,
-                                      content: str) -> None:
-        await self.message_audits.send(self.api,
-                                       task_scheduler.CURRENT_TASK_ID.get(),
-                                       channel_id, content)
+    async def _send_scheduled_message(
+        self, channel_id: str, content: str
+    ) -> None:
+        await self.message_audits.send(
+            self.api, task_scheduler.CURRENT_TASK_ID.get(), channel_id, content
+        )
 
-    async def on_message_audit_pass(self,
-                                    event: botpy_message.MessageAudit) -> None:
+    async def on_message_audit_pass(
+        self, event: botpy_message.MessageAudit
+    ) -> None:
         """Persists the final approved message ID from QQ."""
         self.message_audits.record_event(event, passed=True)
 
     async def on_message_audit_reject(
-            self, event: botpy_message.MessageAudit) -> None:
+        self, event: botpy_message.MessageAudit
+    ) -> None:
         """Persists rejection without resending the message."""
         self.message_audits.record_event(event, passed=False)
 
@@ -113,22 +119,26 @@ class MyClient(botpy.Client):
         await self.task_scheduler.run_task(task)
 
     async def on_at_message_create(self, message: Message) -> None:
-        self.live_forwarding.reply_sources.observe({
-            "id": message.id,
-            "guild_id": message.guild_id,
-            "channel_id": message.channel_id,
-            "timestamp": message.timestamp,
-            "author": {"bot": message.author.bot},
-        })
+        self.live_forwarding.reply_sources.observe(
+            {
+                "id": message.id,
+                "guild_id": message.guild_id,
+                "channel_id": message.channel_id,
+                "timestamp": message.timestamp,
+                "author": {"bot": message.author.bot},
+            }
+        )
         msgs = self.cmd_manager.normalize_msgs(message.content.split())
 
         if len(msgs) < 2:
             await self.api.post_message(
-                channel_id=message.channel_id, content="你在说什么？", msg_id=message.id
+                channel_id=message.channel_id,
+                content="你在说什么？",
+                msg_id=message.id,
             )
             return
 
-        if not await self.cmd_manager.execute(message, msgs):
+        if not await self.cmd_manager.execute_guild(message, msgs):
             raw_cmd_name = msgs[1].lstrip("/") if len(msgs) > 1 else ""
             suggestion = self._get_command_suggestion(raw_cmd_name)
             fallback_msg = (
@@ -137,7 +147,9 @@ class MyClient(botpy.Client):
                 else "未知命令"
             )
             await self.api.post_message(
-                channel_id=message.channel_id, content=fallback_msg, msg_id=message.id
+                channel_id=message.channel_id,
+                content=fallback_msg,
+                msg_id=message.id,
             )
 
     def _get_command_suggestion(self, cmd_name: str) -> str | None:
@@ -147,13 +159,15 @@ class MyClient(botpy.Client):
         matches = difflib.get_close_matches(cmd_name, all_cmds, n=1, cutoff=0.6)
         return matches[0] if matches else None
 
-    async def on_group_at_message_create(self, message: GroupMessage):
-        print(message.content)
-        msgs = message.content.split()
+    async def on_group_at_message_create(self, message: GroupMessage) -> None:
+        """Passes the original GroupMessage to the group command entry."""
+        await self.cmd_manager.execute_group(message)
 
-        if msgs[0].lstrip("/") == "hello":
-            await message.reply(content="hi")
-            return
+    async def on_c2c_message_create(
+        self, message: botpy_message.C2CMessage
+    ) -> None:
+        """C2C is distinct from the existing channel DirectMessage handler."""
+        await self.cmd_manager.execute_user(message)
 
     async def on_direct_message_create(self, message: DirectMessage):
         print(message.content)
