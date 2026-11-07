@@ -11,11 +11,40 @@ from aiohttp import web
 from aiohttp import test_utils
 
 from admin import server
+from live_forwarding import server as forwarding
+from messaging import reply_sources
 from scheduling import config
 
 
 class PackageLayoutTests(unittest.IsolatedAsyncioTestCase):
     """Protects paths which must not depend on the shell working directory."""
+
+    def test_forwarding_and_reply_config_paths_stay_at_repository(self) -> None:
+        root = pathlib.Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as directory:
+            with contextlib.chdir(directory):
+                forwarding.load_config()
+                reply_sources.load_config()
+        self.assertEqual(root, forwarding.ROOT)
+        self.assertEqual(root, reply_sources._ROOT)
+
+    async def test_default_database_paths_do_not_move_with_modules(
+            self) -> None:
+        root = pathlib.Path(__file__).resolve().parent.parent
+        api = mock.Mock()
+        with mock.patch.object(reply_sources,
+                               "load_config",
+                               return_value=reply_sources.Settings()):
+            receiver = forwarding.LiveForwardingServer(api,
+                                                       forwarding.load_config())
+        self.assertEqual(root / "live_forwarding.db",
+                         pathlib.Path(receiver.db_path))
+        await receiver.close()
+        with mock.patch("messaging.reply_sources.sqlite3.connect") as connect:
+            pool = reply_sources.ReplySources(
+                api, reply_sources.Settings(enabled=True))
+            connect.assert_called_once_with(root / "reply_sources.db")
+            await pool.close()
 
     def test_default_schedule_path_is_repository_relative(self) -> None:
         root = pathlib.Path(__file__).resolve().parent.parent

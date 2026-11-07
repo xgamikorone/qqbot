@@ -12,7 +12,7 @@ from aiohttp import test_utils
 from aiohttp import web
 from botpy import errors as bot_errors
 
-import live_forwarding as forwarding
+from live_forwarding import server as forwarding
 
 
 def event(kind: Literal["super_chat", "gift"] = "super_chat",

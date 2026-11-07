@@ -20,7 +20,7 @@ import yaml
 from messaging import reply_sources
 
 log = logging.getLogger("botpy.live_forwarding")
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 class EventRule(TypedDict, total=False):

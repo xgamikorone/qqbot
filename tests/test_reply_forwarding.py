@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest import mock
 
-import live_forwarding
+from live_forwarding import server as live_forwarding
 from messaging import message_id as qq_message_id
 from messaging import reply_sources
 

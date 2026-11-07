@@ -20,7 +20,7 @@ from chat.config import load_config as load_chat_config
 from chat.model_client import ModelClient
 from chat.service import ChatService
 from dao import get_dao
-import live_forwarding as forwarding
+from live_forwarding import server as forwarding
 from messaging import audits as message_audits
 from scheduling import scheduler as task_scheduler
 from scheduling.jobs import (
