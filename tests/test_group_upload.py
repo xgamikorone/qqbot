@@ -1,6 +1,7 @@
 """Offline multipart protocol tests; no real QQ or storage requests."""
 
 import hashlib
+import json
 import pathlib
 import tempfile
 import unittest
@@ -117,6 +118,43 @@ class GroupUploadTests(unittest.IsolatedAsyncioTestCase):
             await self.upload()
         self.assertEqual(3, self.session.put.call_count)
         self.assertEqual(1, self.api._http.request.await_count)
+
+    async def test_sdk_json_text_responses_are_decoded(self) -> None:
+        self.api._http.request.side_effect = [
+            json.dumps(self.plan),
+            "{}",
+            "{}",
+            json.dumps({
+                "file_info": "image",
+                "file_uuid": "uuid",
+                "ttl": 300
+            }),
+        ]
+        media = await group_upload.upload_group_image(self.api, "group",
+                                                      str(self.path))
+        self.assertEqual("image", media["file_info"])
+
+    async def test_stage_diagnostic_never_logs_network_exception_text(
+            self) -> None:
+        self.api._http.request.side_effect = RuntimeError(
+            "https://storage.invalid?signature=private-value")
+        with self.assertLogs(group_upload._LOG, level="ERROR") as logs:
+            with self.assertRaises(RuntimeError):
+                await self.upload()
+        self.assertIn("stage=prepare", "".join(logs.output))
+        self.assertNotIn("private-value", "".join(logs.output))
+
+    async def test_plan_validation_reports_safe_reason(self) -> None:
+        self.api._http.request.side_effect = [{
+            "upload_id": "upload",
+            "block_size": "4",
+            "parts": []
+        }]
+        with self.assertLogs(group_upload._LOG, level="ERROR") as logs:
+            with self.assertRaises(ValueError):
+                await self.upload()
+        self.assertIn("stage=plan", "".join(logs.output))
+        self.assertIn("分片数量与文件大小不符", "".join(logs.output))
 
     async def test_transient_put_failure_retries_same_bytes(self) -> None:
         bad = mock.AsyncMock()

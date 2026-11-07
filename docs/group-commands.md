@@ -99,6 +99,10 @@ C2C 使用独立的 `c2c_command_records`，仅记录用户 OpenID、消息 ID�
 `upload_id`、`file_type=1`、`file_name`、`srv_send_msg=False` 调用 `/files`
 合并并获取 `file_info`。此流程的真实平台响应仍需上线联调确认。
 
+兼容 SDK 将带 charset 的 JSON 响应作为字符串返回的情况。上传失败日志只记录
+`stage=read/prepare/plan/put/confirm/merge/media` 和固定校验原因或异常类型；
+富媒体发送失败记录 `stage=send`。不输出预签名 URL、原始响应或网络异常正文。
+
 只接收非空、至多 20 MB 的本地图片，避免超过图片限制后降级成文件。
 读取有大小上限的文件快照，校验分片序号、数量和总长度；串行上传，
 分片 PUT 最多尝试三次，整体上传限时 240 秒。PUT 使用独立 HTTP 会话，

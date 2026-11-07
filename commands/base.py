@@ -207,14 +207,18 @@ class Command:
                 self.client.api, group_id, path)
         except Exception as error:
             raise command_replies.GroupImageUploadError("群聊本地图片上传失败") from error
-        await self.client.api.post_group_message(
-            group_openid=group_id,
-            msg_type=7,
-            content=" ",
-            media=media,
-            msg_id=message.id,
-            msg_seq=command_replies.next_sequence(message),
-        )
+        try:
+            await self.client.api.post_group_message(
+                group_openid=group_id,
+                msg_type=7,
+                content=" ",
+                media=media,
+                msg_id=message.id,
+                msg_seq=command_replies.next_sequence(message),
+            )
+        except Exception as error:
+            _log.error("群图片发送失败: stage=send exception=%s", type(error).__name__)
+            raise
 
     async def reply_user(
         self, message: botpy_message.C2CMessage, content: str
