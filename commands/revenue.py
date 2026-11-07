@@ -26,200 +26,79 @@ from utils.time_utils import beijing_now
 
 _log = logging.get_logger()
 
-# @command("查营收", "营收", "revenue")
-class RevenueCommand(Command):
-    name = "revenue"
-    cn_name = "查营收"
-
-    async def execute(self, message: Message, args: List[str]):
-        _log.info(f"RevenueCommand args: {args}")
-        if not args:
-            await self.send_reply(message, "请输入要查询的主播uid或昵称")
-            return
-        uid_or_nickname = args[0]
-        if uid_or_nickname.isdigit():
-            uid = int(uid_or_nickname)
-        elif uid_or_nickname.lower().startswith("uid:"):
-            uid = int(uid_or_nickname[4:].strip())
-        else:
-            # 是昵称
-            dao = get_dao()
-            uid = dao.nicknames.get_uid(uid_or_nickname)
-            if uid is None:
-                await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的主播")
-                return
-        _log.info(f"uid: {uid}")
-        last_session_id = await get_last_session_id(uid)
-        _log.info(f"last_session_id: {last_session_id}")
-        name = await get_name_from_uid(uid)
-        _log.info(f"name: {name}")
-        if name is None:
-            name = uid_or_nickname
-        if last_session_id == ErrorCode.NO_LIVE_SESSIONS:
-            await self.send_reply(message, f"主播{name}没有直播记录")
-            return
-        if last_session_id == ErrorCode.ERROR_FETCHING_DATA:
-            await self.send_reply(message, f"查询{name}的直播数据失败")
-            return
-        revenue = await get_session_revenue(last_session_id)
-        revenue = revenue["revenue"]
-        _log.info(f"revenue:\n{revenue}")
-
-        session_info = await get_session_info(last_session_id)
-        _log.info(f"session_info:\n{session_info}")
-        if not session_info:
-            await self.send_reply(message, f"查询{name}的直播数据失败")
-            return
-        if not revenue:
-            await self.send_reply(message, f"查询{name}的直播数据失败")
-            return
-
-        online_members = await get_online_members(last_session_id)
-        # _log.info(f"online_members:\n{online_members}")
-        if not online_members:
-            max_online = 0
-            avg_online = 0
-        else:
-            max_online = online_members["max"]
-            avg_online = online_members["avg"]
-
-        # danmu_count = await get_danmu_info(last_session_id)
-        # _log.info(f"danmu_count: {danmu_count}")
-
-        guard_revenue = revenue.get("guards", 0)
-        gift_revenue = revenue.get("gifts", 0)
-        sc_revenue = revenue.get("super_chats", 0)
-        total = revenue.get("total", 0)
-        start_time = session_info["start_time"]
-        # erase "T" in start time 2026-03-09T21:01:38 -> 2026-03-09 21:01:38
-        start_time = start_time.replace("T", " ")
-        end_time = "" if session_info["end_time"] is None else session_info["end_time"]
-        if end_time is not None:
-            end_time = end_time.replace("T", " ")
-        res_str = (
-            f"主播{name}的最近一场直播营收:\n"
-            f"直播标题: {session_info.get('title', '')}\n"
-            f"直播时间: {start_time}~{end_time}\n"
-            f"同接(最高/平均): {max_online}/{round(avg_online)}\n"
-            # f"弹幕数: {danmu_count}\n"
-            f"舰队收入: {round(guard_revenue, 2)}\n"
-            f"礼物收入: {round(gift_revenue, 2)}\n"
-            f"SC收入: {round(sc_revenue, 2)}\n"
-            f"总收入: {round(total, 2)}"
-        )
-        await self.send_reply(message, res_str)
-
-
-@command("查SC", "SC", "sc", "super_chat")
-class SuperChatCommand(Command):
-    PAGE_SIZE = 10
-    name = "super_chat"
-    cn_name = "查SC"
-
-    async def execute(self, message: Message, args: List[str]):
-        _log.info(f"SuperChatCommand args: {args}")
-        if not args:
-            await self.send_reply(message, "请输入要查询的主播uid或昵称")
-        uid_or_nickname = args[0]
-        num_page = 0 if len(args) < 2 else int(args[1])
-        if num_page < 0:
-            num_page = 0
-        _log.info(f"num_page: {num_page}")
-        if uid_or_nickname.isdigit():
-            uid = int(uid_or_nickname)
-        elif uid_or_nickname.lower().startswith("uid:"):
-            uid = int(uid_or_nickname[4:].strip())
-        else:
-            # 是昵称
-            dao = get_dao()
-            uid = dao.nicknames.get_uid(uid_or_nickname)
-            if uid is None:
-                await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的主播")
-                return
-        name = await get_name_from_uid(uid)
-        _log.info(f"uid: {uid}, name: {name}")
-        if name is None:
-            name = uid_or_nickname
-        super_chats = await get_super_chats(
-            uid,
-            num_page * self.PAGE_SIZE,
-            (num_page + 1) * self.PAGE_SIZE,
-        )
-        _log.info(f"super_chats:\n{super_chats}")
-
-        res_str = (
-            f"主播 {name}的最近 {num_page * self.PAGE_SIZE+1}~{(num_page + 1) * self.PAGE_SIZE}条SC:\n"
-            f"格式为: 用户名:SC内容;时间;价格\n"
-        )
-        # for sc in super_chats:
-        #     res_str += f"{sc['user_name']}: {sc['message']}; {sc['record_time']}; {sc['price']}\n"
-
-        res_str += "\n".join(
-            [
-                f"{sc['user_name']}: {sc['message']}; {sc['record_time']}; {sc['price']}"
-                for sc in super_chats
-            ]
-        )
-        await self.send_reply(message, res_str)
-
 
 @command("查舰长", "guards")
-class StreamerGuardsCommand(Command):
+class StreamerGuardsCommand(text_query.TextQueryCommand):
+    """Queries streamer guard-purchase records with V2 nickname matching."""
+
     PAGE_SIZE = 10
     name = "streamer_guards"
     cn_name = "查舰长"
+    max_num_uids = 5
+    help = CommandHelp(
+        title="查舰长",
+        category="直播数据",
+        summary="分页查询主播收到的上舰记录",
+        usage="/查舰长 <uid或昵称> [页码]",
+        details="查询主播收到的上舰记录，与 /舰长 查询当前舰长数不同。\n"
+        "支持 UID、uid:12345、精确昵称和模糊昵称，最多匹配 5 位主播。\n"
+        "页码从 0 开始，每页 10 条；负数按 0 处理。\n"
+        "用法：/查舰长 <uid或昵称> [页码]",
+    )
 
-    async def execute(self, message: Message, args: List[str]):
-        _log.info(f"StreamerGuardsCommand args: {args}")
+    async def query_and_reply(
+        self, args: list[str], reply: text_query.TextSender
+    ) -> bool:
+        """Keeps each matched streamer's records and the legacy price units."""
         if not args:
-            await self.send_reply(message, "请输入要查询的主播uid或昵称")
-            return
-        uid_or_nickname = args[0]
-        num_page = 0 if len(args) < 2 else int(args[1])
-        if num_page < 0:
-            num_page = 0
-        _log.info(f"num_page: {num_page}")
-        if uid_or_nickname.isdigit():
-            uid = int(uid_or_nickname)
-        elif uid_or_nickname.lower().startswith("uid:"):
-            uid = int(uid_or_nickname[4:].strip())
-        else:
-            # 是昵称
-            dao = get_dao()
-            uid = dao.nicknames.get_uid(uid_or_nickname)
-            if uid is None:
-                await self.send_reply(message, f"未找到昵称为{uid_or_nickname}的主播")
-                return
-        name = await get_name_from_uid(uid)
-        _log.info(f"uid: {uid}, name: {name}")
-        if name is None:
-            name = uid_or_nickname
-        guards = await get_guards(
-            uid,
-            num_page * self.PAGE_SIZE,
-            (num_page + 1) * self.PAGE_SIZE,
-        )
-        _log.info(f"super_chats:\n{guards}")
+            await reply("请输入要查询的主播uid或昵称")
+            return False
+        try:
+            page = max(0, int(args[1])) if len(args) > 1 else 0
+        except ValueError:
+            await reply("页码格式错误，请输入整数；页码从 0 开始")
+            return False
+        try:
+            uids = _resolve_query_uids(args[0], self.max_num_uids)
+        except ValueError:
+            await reply("UID 格式错误，请输入正整数或 uid:正整数")
+            return False
+        if not uids:
+            await reply(f"未找到昵称为{args[0]}的主播")
+            return False
 
-        res_str = (
-            f"主播 {name}的最近 {num_page * self.PAGE_SIZE+1}~{(num_page + 1) * self.PAGE_SIZE}个舰长:\n"
-            f"格式为: 用户名:舰长等级;数量;时间;价格\n"
-        )
-        guard_levels = {
-            1: "总督",
-            2: "提督",
-            3: "舰长",
-        }
-        # for sc in super_chats:
-        #     res_str += f"{sc['user_name']}: {sc['message']}; {sc['record_time']}; {sc['price']}\n"
-
-        res_str += "\n".join(
-            [
-                f"{g['user_name']}: {guard_levels.get(g['guard_level'], g['guard_level'])}; {g['num']}; {g['record_time']}; {g['price'] / 1000.}"
-                for g in guards
-            ]
-        )
-        await self.send_reply(message, res_str)
+        sections: list[str] = []
+        succeeded = True
+        levels = {1: "总督", 2: "提督", 3: "舰长"}
+        for uid in uids:
+            try:
+                name = await get_name_from_uid(uid) or str(uid)
+                records = await get_guards(
+                    uid, page * self.PAGE_SIZE, (page + 1) * self.PAGE_SIZE
+                )
+                if records is None:
+                    sections.append(f"查询{name}的上舰记录失败")
+                    succeeded = False
+                    continue
+                rows = [
+                    f"{record['user_name']}: "
+                    f"{levels.get(record['guard_level'], record['guard_level'])}; "
+                    f"{record['num']}; {record['record_time']}; "
+                    f"{record['price'] / 1000.}"
+                    for record in records
+                ]
+                sections.append(
+                    f"主播 {name}的最近 {page * self.PAGE_SIZE + 1}~{(page + 1) * self.PAGE_SIZE}个舰长:\n"
+                    "格式为: 用户名:舰长等级;数量;时间;价格\n"
+                    + ("\n".join(rows) if rows else "暂无上舰记录")
+                )
+            except TimeoutError:
+                sections.append(f"查询主播{uid}的上舰记录超时，请稍后再试")
+                succeeded = False
+            finally:
+                await asyncio.sleep(1.0)
+        await reply("\n\n".join(sections))
+        return succeeded
 
 
 @command("查用户SC", "用户SC", "user_sc", "user_super_chat")
@@ -740,21 +619,21 @@ class RevenueCommandV2(text_query.TextQueryCommand):
         return succeeded
 
 
-@command("super_chat_v2", "查SCv2")
+@command("查SC", "SC", "sc", "super_chat", "super_chat_v2", "查SCv2")
 class SuperChatCommandV2(text_query.TextQueryCommand):
     PAGE_SIZE = 10
     name = "super_chat_v2"
-    cn_name = "查SCv2"
+    cn_name = "查SC"
     max_num_uids = 5
     help = CommandHelp(
-        title="查SCv2",
+        title="查SC",
         category="直播数据",
         summary="分页查询主播收到的 SC",
-        usage="/查SCv2 <uid或昵称> [页码]",
-        examples=("/查SCv2 12345 0",),
+        usage="/查SC <uid或昵称> [页码]",
+        examples=("/查SC 12345 0",),
         details="查询主播收到的 SC，支持 UID、uid:12345、昵称和昵称模糊匹配。\n"
         "页码从 0 开始，每页 10 条；负数按 0 处理，最多匹配 5 位主播。\n"
-        "用法：/查SCv2 <uid或昵称> [页码]",
+        "用法：/查SC <uid或昵称> [页码]；/查SCv2 仍可使用",
     )
 
     async def query_and_reply(

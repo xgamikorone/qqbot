@@ -167,6 +167,23 @@ class GroupLiveQueryTests(unittest.IsolatedAsyncioTestCase):
                 ),
             )
         )
+        self.guard_records = self.stack.enter_context(
+            mock.patch.object(
+                revenue,
+                "get_guards",
+                new=mock.AsyncMock(
+                    return_value=[
+                        {
+                            "user_name": "观众",
+                            "guard_level": 3,
+                            "num": 1,
+                            "record_time": "今天",
+                            "price": 198000,
+                        }
+                    ]
+                ),
+            )
+        )
         self.stack.enter_context(
             mock.patch.object(
                 revenue,
@@ -225,16 +242,23 @@ class GroupLiveQueryTests(unittest.IsolatedAsyncioTestCase):
             self.api.post_group_message.assert_not_awaited()
         return [call.kwargs["content"] for call in calls]
 
-    async def test_all_five_queries_match_channel_output_and_record_group_usage(
+    async def test_all_six_queries_match_channel_output_and_record_group_usage(
         self,
     ) -> None:
-        for content in ("/营收 1", "/高能", "/粉丝", "/舰长", "/查SCv2 1"):
+        for content in (
+            "/营收 1",
+            "/高能",
+            "/粉丝",
+            "/舰长",
+            "/查SC 1",
+            "/查舰长 1",
+        ):
             with self.subTest(content=content):
                 group = await self.run_command(content)
                 guild = await self.run_command(content, "guild")
                 self.assertEqual(guild, group)
         self.assertEqual(
-            5,
+            6,
             self.dao.conn.execute(
                 "SELECT COUNT(*) FROM group_command_records WHERE succeeded = 1"
             ).fetchone()[0],
@@ -350,15 +374,104 @@ class GroupLiveQueryTests(unittest.IsolatedAsyncioTestCase):
         self,
     ) -> None:
         content = base.render_scene_help("group")
-        for title in ("营收", "同接", "粉丝", "舰长", "查SCv2"):
+        for title in ("营收", "同接", "粉丝", "舰长", "查SC", "查舰长"):
             self.assertIn(title, content)
         self.assertNotIn("查用户SC", content)
         self.assertNotIn("查用户舰长", content)
-        for alias in ("营收", "高能", "粉丝", "舰长", "查SCv2"):
+        for alias in ("营收", "高能", "粉丝", "舰长", "查SC", "查舰长"):
             self.assertFalse(
                 self.manager.commands[alias].supports_scene("user")
             )
-        self.assertFalse(self.manager.commands["查SC"].supports_scene("group"))
+        self.assertTrue(self.manager.commands["查SC"].supports_scene("group"))
+
+    async def test_sc_legacy_and_v2_aliases_use_the_same_v2_implementation(
+        self,
+    ) -> None:
+        for alias in (
+            "查SC",
+            "SC",
+            "sc",
+            "super_chat",
+            "super_chat_v2",
+            "查SCv2",
+        ):
+            with self.subTest(alias=alias):
+                self.assertIs(
+                    type(self.manager.commands[alias]),
+                    revenue.SuperChatCommandV2,
+                )
+                messages = await self.run_command(f"/{alias} 1")
+                self.assertIn("加油", "".join(messages))
+        self.assertFalse(hasattr(revenue, "SuperChatCommand"))
+        self.assertFalse(hasattr(revenue, "RevenueCommand"))
+
+    async def test_guard_records_fuzzy_match_limit_and_price_units(
+        self,
+    ) -> None:
+        for uid in range(1, 8):
+            self.dao.nicknames.add(uid, f"上舰测试{uid}")
+        messages = await self.run_command("/查舰长 上舰测试 1")
+        content = "".join(messages)
+        self.assertEqual(5, self.guard_records.await_count)
+        self.guard_records.assert_any_await(1, 10, 20)
+        self.assertIn("主播1的最近 11~20个舰长", content)
+        self.assertIn("主播5的最近", content)
+        self.assertNotIn("主播6的最近", content)
+        self.assertIn("观众: 舰长; 1; 今天; 198.0", content)
+
+    async def test_guard_records_exact_nickname_and_uid_prefix(self) -> None:
+        self.dao.nicknames.add(1, "上舰主播")
+        self.dao.nicknames.add(2, "上舰主播2")
+        await self.run_command("/查舰长 上舰主播")
+        self.guard_records.assert_awaited_once_with(1, 0, 10)
+        await self.run_command("/guards uid:2 -1")
+        self.guard_records.assert_awaited_with(2, 0, 10)
+
+    async def test_guard_record_invalid_inputs_do_not_query(self) -> None:
+        for content in (
+            "/查舰长",
+            "/查舰长 uid:abc",
+            "/查舰长 0",
+            "/查舰长 1 invalid",
+            "/查舰长 没有此昵称",
+        ):
+            with self.subTest(content=content):
+                self.assertEqual(1, len(await self.run_command(content)))
+        self.guard_records.assert_not_awaited()
+
+    async def test_guard_records_empty_partial_failure_and_timeout(
+        self,
+    ) -> None:
+        self.guard_records.return_value = []
+        self.assertIn("暂无上舰记录", (await self.run_command("/查舰长 1"))[0])
+        self.dao.nicknames.add(1, "部分1")
+        self.dao.nicknames.add(2, "部分2")
+        self.guard_records.side_effect = [
+            None,
+            [
+                {
+                    "user_name": "观众",
+                    "guard_level": 2,
+                    "num": 1,
+                    "record_time": "今天",
+                    "price": 1000,
+                }
+            ],
+        ]
+        messages = await self.run_command("/查舰长 部分")
+        self.assertIn("主播1的上舰记录失败", messages[0])
+        self.assertIn("观众: 提督", messages[0])
+        self.guard_records.side_effect = TimeoutError
+        self.assertIn("超时", (await self.run_command("/查舰长 1"))[0])
+
+    def test_user_super_chat_remains_guild_only(self) -> None:
+        self.assertIs(
+            type(self.manager.commands["查用户SC"]),
+            revenue.UserSuperChatCommand,
+        )
+        self.assertFalse(
+            self.manager.commands["查用户SC"].supports_scene("group")
+        )
 
 
 if __name__ == "__main__":
