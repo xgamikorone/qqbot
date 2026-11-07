@@ -1,3 +1,55 @@
+## Project orientation
+
+- Read `docs/project-layout.md` for the current module map and import paths.
+- Read `docs/development.md` for setup, validation, and cross-machine handoff.
+- `main.py` is the bot entry point; `app.py` is a separate download service.
+- Keep command handling in `commands/`, external clients in `integrations/`,
+  scheduling in `scheduling/`, and QQ message utilities in `messaging/`.
+- Administration lives in `admin/`; live event forwarding lives in
+  `live_forwarding/`. Do not recreate the removed root-level modules.
+- Run development commands from the repository root. Preserve existing config,
+  asset, and database locations when moving modules; add path regression tests.
+
+## Development and validation
+
+- Use Python 3.11 as documented in `requirements.txt`, with a local virtual
+  environment. Install runtime dependencies from that file.
+- YAPF and mypy are separate development tools; Node.js runs the frontend tests.
+- Do not hard-code a developer's Python executable, username, or absolute path
+  in project code, scripts, or instructions.
+- Default to offline tests. Run the relevant tests during development and the
+  full regression suite before handing off code changes:
+
+  ```text
+  python -X utf8 -m unittest discover -s tests
+  node --test tests/admin_ui.test.cjs
+  ```
+
+- Format only changed Python code with `.style.yapf` and type-check affected
+  modules. Report the scope checked and any pre-existing failures accurately.
+- Documentation-only edits require link/path and diff checks, not a full test
+  run, unless they also change executable configuration or behavior.
+
+## Safety and handoff
+
+- Never print, log, hard-code, or commit secrets, including `.env` values.
+  Use `.env.example` for variable names and safe placeholders only.
+- Offline development must not require production API keys or databases.
+  Do not copy production data into tests or tracked files.
+- Do not start a second bot using production credentials: scheduled tasks and
+  forwarding may send duplicate messages. Use isolated test configuration.
+- Real QQ sends, paid API tests, production database changes, SSH operations,
+  deployments, and Git pushes require explicit user authorization for that
+  action; code changes alone do not authorize them.
+- Inspect the worktree first and preserve unrelated user changes. Prefer small,
+  independently reversible commits; never reset or discard user work.
+- At handoff, summarize changes, checks, commit IDs, and remaining work. State
+  whether changes were pushed or deployed. Keep durable project decisions in
+  repository documentation rather than relying on prior chat history.
+- User-installed skills and machine-specific settings are not repository
+  dependencies. Do not assume paths under another developer's user directory
+  exist on a new computer; use repository instructions as the baseline.
+
 ## Agent skills
 
 ### Issue tracker
