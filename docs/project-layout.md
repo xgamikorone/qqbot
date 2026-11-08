@@ -10,6 +10,7 @@
 | `commands/text_query.py` | 文本查询共用频道/群聊入口和群文本分段 |
 | `commands/image_query.py` | 图片查询共用入口、跨场景冷却及串行绘图 |
 | `messaging/command_replies.py` | 每次事件独立的群聊/单聊回复序号 |
+| `messaging/group_names.py` | 群昵称缓存与可选成员信息查询 |
 | `chat/` | 聊天会话、模型调用和联网工具 |
 | `admin/server.py` | 本地管理面板 HTTP 入口与鉴权 |
 | `admin/operations.py` | 面板可调用操作的白名单 |
@@ -25,6 +26,8 @@
 | `integrations/baidu_translate.py` | 百度翻译请求与错误解释 |
 | `botpy_ext/` | QQ SDK 扩展 |
 | `botpy_ext/group_upload.py` | 本地群图片分片上传及合并 |
+| `botpy_ext/group_events.py` | 连接专属群事件解析，保留昵称字段 |
+| `botpy_ext/group_members.py` | 群成员昵称接口及无权限降级 |
 | `database/` | 数据库结构、连接及仓储 |
 | `config/` | 原有配置文件，位置不变 |
 | `tests/` | Python 和前端离线测试 |

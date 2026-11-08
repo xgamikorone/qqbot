@@ -10,6 +10,7 @@ from botpy import message as botpy_message
 
 from dao import get_dao
 from messaging import command_replies
+from messaging import group_names
 from . import base
 from . import help_catalog
 
@@ -62,6 +63,11 @@ class CommandManager:
             alias: cls(client) for alias, cls in base._command_registry.items()
         }
         self._sender = base.Command(client)
+        self.group_names = group_names.GroupNameResolver(
+            client.api, get_dao().groups
+        )
+        for command in self.commands.values():
+            command.group_names = self.group_names
 
     def normalize_msgs(self, msgs: list[str]) -> list[str]:
         """Splits a channel mention joined to a command."""

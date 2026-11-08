@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 import commands
 from botpy_ext import ExtendedBotAPI
+from botpy_ext import group_events
 from admin.server import BotAdminServer
 from commands import CommandManager
 from chat.config import load_config as load_chat_config
@@ -35,7 +36,7 @@ _log = logging.get_logger()
 load_dotenv()
 
 
-class MyClient(botpy.Client):
+class MyClient(group_events.GroupNicknameClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api = ExtendedBotAPI(http=self.http)

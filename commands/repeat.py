@@ -67,8 +67,7 @@ class RepeatCommand(base.Command):
     async def execute_group(self, message: botpy_message.GroupMessage,
                             args: list[str]) -> bool:
         """Uses available display names without printing member OpenIDs."""
-        name = getattr(message.author, "username", None)
-        name = name.strip() if isinstance(name, str) else ""
+        name = await self.group_display_name(message)
         content = f"{name or '一位朋友'}: {' '.join(args)}"
         url = image_url(message.attachments)
         if not url:

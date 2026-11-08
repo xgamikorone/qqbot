@@ -10,6 +10,7 @@ from functools import wraps
 from time import monotonic
 from .help_catalog import CommandHelp, HelpCatalog
 from messaging import command_replies
+from messaging import group_names
 from botpy_ext import group_upload
 
 _command_registry: Dict[str, Type["Command"]] = {}
@@ -96,6 +97,15 @@ class Command:
 
     def __init__(self, client: Client):
         self.client = client
+        self.group_names: group_names.GroupNameResolver | None = None
+
+    async def group_display_name(
+        self, message: botpy_message.GroupMessage
+    ) -> str:
+        """Resolves a group nickname through the shared optional name service."""
+        if self.group_names is not None:
+            return await self.group_names.resolve(message)
+        return group_names.event_name(message)
 
     async def execute(self, message: Message, args: List[str]) -> bool | None:
         """Legacy channel entry; new commands implement execute_guild instead."""

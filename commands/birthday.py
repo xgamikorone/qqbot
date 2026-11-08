@@ -61,8 +61,10 @@ class BirthdayCommand(base.Command):
         if not args:
             await self.reply_group(message, "请输入生日的用户!")
             return False
-        name = getattr(message.author, "username", "")
-        default_sender = name.strip() if isinstance(name, str) else ""
-        sender = args[1] if len(args) > 1 else default_sender or "一位朋友"
+        sender = (
+            args[1]
+            if len(args) > 1
+            else (await self.group_display_name(message)) or "一位朋友"
+        )
         await self.reply_group(message, self.build_greeting(args[0], sender))
         return True

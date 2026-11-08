@@ -9,6 +9,15 @@ class GroupRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
+    def get_display_name(self, group_openid: str, member_openid: str) -> str:
+        """Reads a previously observed name within the same group only."""
+        row = self._connection.execute(
+            "SELECT display_name FROM group_members "
+            "WHERE group_openid = ? AND member_openid = ?",
+            (group_openid, member_openid),
+        ).fetchone()
+        return row[0] if row and isinstance(row[0], str) else ""
+
     def record_command(
         self,
         *,
