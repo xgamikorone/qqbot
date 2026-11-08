@@ -2,6 +2,14 @@ import sqlite3
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS group_wife_daily (
+    group_openid TEXT NOT NULL,
+    member_openid TEXT NOT NULL,
+    date TEXT NOT NULL,
+    wife_id INTEGER NOT NULL,
+    PRIMARY KEY (group_openid, member_openid, date),
+    FOREIGN KEY (wife_id) REFERENCES wife_urls(id)
+);
 CREATE TABLE IF NOT EXISTS group_chuang_daily (
     group_openid TEXT NOT NULL,
     member_openid TEXT NOT NULL,

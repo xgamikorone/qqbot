@@ -4,6 +4,7 @@ from database.repositories import message_audit_repository
 from database.repositories import group_repository
 from database.repositories import c2c_repository
 from database.repositories import group_chuang_repository
+from database.repositories import group_wife_repository
 from database.repositories.chuang_repository import ChuangRepository
 from database.repositories.command_record_repository import CommandRecordRepository
 from database.repositories.nickname_repository import NicknameRepository
@@ -23,6 +24,7 @@ class Dao:
         initialize_schema(self.conn)
 
         self.wives = WifeRepository(self.conn)
+        self.group_wives = group_wife_repository.GroupWifeRepository(self.conn)
         self.chuang = ChuangRepository(self.conn)
         self.group_chuang = group_chuang_repository.GroupChuangRepository(
             self.conn

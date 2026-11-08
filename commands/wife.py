@@ -14,6 +14,8 @@ from textwrap import dedent
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from utils.time_utils import beijing_now
+from botpy import message as botpy_message
+from . import group_wife
 
 _log = logging.get_logger()
 
@@ -281,6 +283,7 @@ async def send_wife_card(command: Command, message: Message, wife: dict, title: 
 
 @command("来个老婆", "wife")
 class WifeCommand(Command):
+    supported_scenes = frozenset({"guild", "group"})
     name = "wife"
     cn_name = "来个老婆"
     help = CommandHelp(
@@ -289,6 +292,12 @@ class WifeCommand(Command):
         summary="每日获得一位随机老婆",
         usage="/来个老婆",
     )
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Draws a group-scoped daily assignment from shared resources."""
+        return await group_wife.draw_daily(self, message, args)
 
     async def execute(self, message: Message, args: List[str]):
 
@@ -345,6 +354,7 @@ class WifeCommand(Command):
 
 @command("我的老婆")
 class MyWifeCommand(Command):
+    supported_scenes = frozenset({"guild", "group"})
     name = "my_wife"
     cn_name = "我的老婆"
     help = CommandHelp(
@@ -354,6 +364,12 @@ class MyWifeCommand(Command):
         usage="/我的老婆 <日期>",
         examples=("/我的老婆 昨天", "/我的老婆 2024-06-01"),
     )
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Reads history within the current group only."""
+        return await group_wife.history(self, message, args)
 
     async def execute(self, message: Message, args: List[str]):
         dao = get_dao()
@@ -391,8 +407,21 @@ class MyWifeCommand(Command):
 
 @command("老婆列表", "wife_list")
 class WifeListCommand(Command):
+    supported_scenes = frozenset({"guild", "group"})
     name = "wife_list"
     cn_name = "老婆列表"
+    help = CommandHelp(
+        title="老婆列表",
+        category="娱乐",
+        summary="分页浏览共享老婆资源",
+        usage="/老婆列表 [页数]",
+    )
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Shows the shared resource catalog with group image transport."""
+        return await group_wife.catalog(self, message, args)
 
     async def execute(self, message: Message, args: List[str]):
         if len(args) > 1 or (args and (not args[0].isdigit() or int(args[0]) < 1)):
@@ -437,8 +466,21 @@ class WifeListCommand(Command):
 
 @command("老婆详情", "按ID查老婆", "wife_by_id")
 class WifeByIdCommand(Command):
+    supported_scenes = frozenset({"guild", "group"})
     name = "wife_by_id"
     cn_name = "老婆详情"
+    help = CommandHelp(
+        title="老婆详情",
+        category="娱乐",
+        summary="按 ID 查看老婆图片与状态",
+        usage="/老婆详情 <id>",
+    )
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Shows one shared resource without drawing an assignment."""
+        return await group_wife.detail(self, message, args)
 
     async def execute(self, message: Message, args: List[str]):
         if len(args) != 1 or not args[0].isdigit():
@@ -453,8 +495,21 @@ class WifeByIdCommand(Command):
 
 @command("查老婆", "查询老婆", "搜索老婆", "wife_search")
 class SearchWifeCommand(Command):
+    supported_scenes = frozenset({"guild", "group"})
     name = "search_wife"
     cn_name = "查老婆"
+    help = CommandHelp(
+        title="查老婆",
+        category="娱乐",
+        summary="按名字搜索共享老婆资源",
+        usage="/查老婆 <名字关键字>",
+    )
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Searches names and sends at most ten matching resources."""
+        return await group_wife.catalog(self, message, args, search=True)
 
     async def execute(self, message: Message, args: List[str]):
         keyword = " ".join(args).strip()
