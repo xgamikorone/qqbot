@@ -1,11 +1,12 @@
 import random
-from commands.utils import is_admin
 from .base import command, Command
 from dao import get_dao
 from botpy.message import Message
 from botpy import logging
 from typing import List
-from textwrap import dedent
+from botpy import message as botpy_message
+from messaging import command_replies
+from . import help_catalog
 from utils.time_utils import beijing_now_str
 
 _log = logging.get_logger()
@@ -20,9 +21,16 @@ IMG_BREAK = "imgs/chuang/break.png"
 
 
 def today_str() -> str:
+    """Returns the current Beijing calendar date."""
     return beijing_now_str("%Y-%m-%d")
 
-def biased_random(min_v=1, max_v=999, power=27.0, uniform_weight=0.6):
+
+def biased_random(
+    min_v: int = 1,
+    max_v: int = 999,
+    power: float = 27.0,
+    uniform_weight: float = 0.6,
+) -> int:
     """
     用均匀与偏小分布的混合曲线生成随机数。
 
@@ -36,10 +44,57 @@ def biased_random(min_v=1, max_v=999, power=27.0, uniform_weight=0.6):
 
 @command("chuang", "开创")
 class ChuangCommand(Command):
+    supported_scenes = frozenset({"guild", "group"})
     name = "chuang"
     cn_name = "开创"
+    help = help_catalog.CommandHelp(
+        title="开创",
+        category="娱乐",
+        summary="查看今天被瞳瞳车创飞的距离",
+        usage="/开创",
+        examples=("/开创",),
+        details="群聊按群和成员每日独立生成结果；重复查询保持当天距离，排名按当前记录计算。",
+    )
 
-    async def execute(self, message: Message, args: List[str]):
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Creates or replays this member's result within the current group."""
+        nickname = await self.group_display_name(message) or "一位朋友"
+        result = get_dao().group_chuang.get_or_create(
+            command_replies.require_id(message.group_openid),
+            command_replies.require_id(message.author.member_openid),
+            today_str(),
+            biased_random,
+        )
+        image = (
+            IMG_BREAK
+            if result.personal_record
+            else (IMG_HIGH if result.distance >= 500 else IMG_LOW)
+        )
+        lines = [
+            "注意！注意！瞳瞳车来咯~~~！",
+            "",
+            f"{nickname}今天被瞳瞳车创飞了{result.distance}米！",
+            f"🏅 今日排名第{result.daily_rank}名。",
+        ]
+        if result.personal_record:
+            lines.extend(
+                [
+                    "",
+                    "🎉 恭喜你刷新了自己的最高纪录",
+                    f"🎊 达到{result.distance}米，历史排名第{result.history_rank}名。",
+                ]
+            )
+        content = "\n".join(lines)
+        try:
+            await self.reply_group_local_image(message, image, content)
+        except command_replies.GroupImageUploadError:
+            await self.reply_group(message, content + "\n图片暂时无法加载。")
+        return True
+
+    async def execute(self, message: Message, args: List[str]) -> None:
+        """Preserves the original channel game and record semantics."""
         dao = get_dao()
         today = today_str()
 

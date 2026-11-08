@@ -11,6 +11,7 @@
 | `commands/image_query.py` | 图片查询共用入口、跨场景冷却及串行绘图 |
 | `messaging/command_replies.py` | 每次事件独立的群聊/单聊回复序号 |
 | `messaging/group_names.py` | 群昵称缓存与可选成员信息查询 |
+| `database/repositories/group_chuang_repository.py` | 群开创每日结果、事务去重和排名 |
 | `chat/` | 聊天会话、模型调用和联网工具 |
 | `admin/server.py` | 本地管理面板 HTTP 入口与鉴权 |
 | `admin/operations.py` | 面板可调用操作的白名单 |

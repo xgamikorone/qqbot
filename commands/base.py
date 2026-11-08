@@ -208,8 +208,9 @@ class Command:
             msg_seq=command_replies.next_sequence(message),
         )
 
-    async def reply_group_local_image(self, message: botpy_message.GroupMessage,
-                                      path: str) -> None:
+    async def reply_group_local_image(
+        self, message: botpy_message.GroupMessage, path: str, content: str = ""
+    ) -> None:
         """Uploads a local image and sends one passive rich-media reply."""
         group_id = command_replies.require_id(message.group_openid)
         try:
@@ -221,7 +222,7 @@ class Command:
             await self.client.api.post_group_message(
                 group_openid=group_id,
                 msg_type=7,
-                content=" ",
+                content=content or " ",
                 media=media,
                 msg_id=message.id,
                 msg_seq=command_replies.next_sequence(message),

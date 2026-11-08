@@ -195,7 +195,7 @@ class SceneCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_unsupported_and_owner_commands_are_not_executed(
         self,
     ) -> None:
-        await self.manager.execute_group(self.group_message("/开创"))
+        await self.manager.execute_group(self.group_message("/排行榜"))
         command = self.manager.commands["time"]
         with mock.patch.object(command, "owner_only", True):
             with mock.patch.object(command, "execute_group") as run:

@@ -2,6 +2,16 @@ import sqlite3
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS group_chuang_daily (
+    group_openid TEXT NOT NULL,
+    member_openid TEXT NOT NULL,
+    date TEXT NOT NULL,
+    distance INTEGER NOT NULL CHECK (distance BETWEEN 1 AND 999),
+    personal_record INTEGER NOT NULL CHECK (personal_record IN (0, 1)),
+    PRIMARY KEY (group_openid, member_openid, date)
+);
+CREATE INDEX IF NOT EXISTS idx_group_chuang_daily_rank
+ON group_chuang_daily(group_openid, date, distance);
 CREATE TABLE IF NOT EXISTS c2c_command_records (
     id INTEGER PRIMARY KEY,
     user_openid TEXT NOT NULL,
