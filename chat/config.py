@@ -18,6 +18,7 @@ class ChatConfig:
     daily_requests_per_user: int = 30
     retention_days: int = 7
     web_enabled: bool = False
+    summary_construct_ids: bool = False
     web_max_searches: int = 2
     web_max_fetches: int = 2
     web_max_context_chars: int = 8000
@@ -33,17 +34,22 @@ def load_config(path: str | pathlib.Path | None = None) -> ChatConfig:
     if not isinstance(data, dict) or set(data) - (
             set(ChatConfig.__dataclass_fields__) - {"prompt"}):
         raise ValueError("Invalid chat configuration")
-    for switch in ("enabled", "web_enabled"):
+    for switch in ("enabled", "web_enabled", "summary_construct_ids"):
         if type(data.get(switch, False)) is not bool:
             raise ValueError("Chat switches must be boolean")
     channels = data.get("allowed_channel_ids", [])
     if not isinstance(channels, list) or any(
-            not isinstance(x, str) or not x.isdigit() for x in channels):
+        not isinstance(x, str) or not x.isdigit() for x in channels
+    ):
         raise ValueError("Channel IDs must be quoted numeric strings")
     data["allowed_channel_ids"] = tuple(channels)
     for key, value in data.items():
-        if key not in {"enabled", "web_enabled", "allowed_channel_ids"
-                      } and (type(value) is not int or value <= 0):
+        if key not in {
+            "enabled",
+            "web_enabled",
+            "summary_construct_ids",
+            "allowed_channel_ids",
+        } and (type(value) is not int or value <= 0):
             raise ValueError("Chat limits must be positive integers")
     config = ChatConfig(**data,
                         prompt=(ROOT / "config/chat_prompt.txt").read_text(

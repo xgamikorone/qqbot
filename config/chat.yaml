@@ -10,6 +10,8 @@ daily_requests_per_user: 30
 retention_days: 7
 # Opt-in DeepSeek official Search/Fetch tools.
 web_enabled: false
+# Experimental bounded single-message lookup; no list API or reply-ID changes.
+summary_construct_ids: false
 web_max_searches: 2
 web_max_fetches: 2
 web_max_context_chars: 8000

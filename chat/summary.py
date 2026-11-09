@@ -9,6 +9,7 @@ import time
 from botpy import api as botpy_api
 
 from botpy_ext import channel_history
+from botpy_ext import constructed_history
 from chat import config as chat_config
 from chat import model_client
 from database.repositories import chat_repository
@@ -67,7 +68,7 @@ class SummaryService:
         """Checks a reference before retaining it within the requesting scope."""
         self.check(key)
         resolved = await channel_history.get_message(self.api, key[1], identifier)
-        identifier = resolved.id
+        identifier = identifier if self.config.summary_construct_ids else resolved.id
         selected = self.selections.get(key)
         if selected is None or selected.expires <= time.monotonic():
             selected = Selection(time.monotonic() + 1800)
@@ -119,7 +120,14 @@ class SummaryService:
             self.tasks.pop(key, None)
 
     async def _generate(self, key: Key, start: str, end: str) -> str:
-        records = await channel_history.read_range(self.api, key[1], start, end)
+        if self.config.summary_construct_ids:
+            records = await constructed_history.read_range(
+                self.api, key[1], start, end
+            )
+        else:
+            records = await channel_history.read_range(
+                self.api, key[1], start, end
+            )
         data = json.dumps(
             [{"speaker": row.author, "text": row.content} for row in records],
             ensure_ascii=False,
@@ -138,7 +146,8 @@ class SummaryService:
                 {"role": "user", "content": data},
             ]
         )
-        return f"频道总结（{len(records)}条可见消息，包含起止消息；仅总结文字及附件标记）\n{result.text}"
+        mode = "实验性构造ID逐条查询；" if self.config.summary_construct_ids else ""
+        return f"频道总结（{mode}{len(records)}条可见消息，包含起止消息；仅总结文字及附件标记）\n{result.text}"
 
     async def close(self) -> None:
         """Cancels in-flight work and releases the dedicated model session."""
