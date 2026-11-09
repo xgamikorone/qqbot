@@ -64,7 +64,9 @@ async def draw_daily(
     from . import wife
 
     database = dao.get_dao()
-    refresh = database.settings.wife_refresh_time
+    refresh = database.settings.get_wife_refresh_time(
+        "group", command_replies.require_id(message.group_openid)
+    )
     now, threshold = wife.get_today_refresh_time(refresh)
     name = await command.group_display_name(message) or "一位朋友"
     if now < threshold:

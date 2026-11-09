@@ -16,6 +16,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from utils.time_utils import beijing_now
 from botpy import message as botpy_message
 from . import group_wife
+from botpy_ext import group_members
+from . import refresh_settings
+from messaging import command_replies
 
 _log = logging.get_logger()
 
@@ -302,7 +305,9 @@ class WifeCommand(Command):
     async def execute(self, message: Message, args: List[str]):
 
         dao = get_dao()
-        refresh_time = dao.settings.wife_refresh_time
+        refresh_time = dao.settings.get_wife_refresh_time(
+            "guild", message.guild_id
+        )
         now, today_refresh_time = get_today_refresh_time(refresh_time)
         if now < today_refresh_time:
             remaining_seconds = int((today_refresh_time - now).total_seconds())
@@ -665,28 +670,41 @@ class WifeRefreshTimeCommand(Command):
         usage="/老婆刷新时间\n/设置老婆刷新时间 <HH:MM>",
         examples=("/老婆刷新时间", "/设置老婆刷新时间 08:00"),
     )
-    owner_only = True
+    supported_scenes = frozenset({"guild", "group"})
+    owner_only = False
 
-    async def execute(self, message: Message, args: List[str]):
-        dao = get_dao()
-        current_refresh_time = dao.settings.wife_refresh_time
+    async def execute(self, message: Message, args: list[str]) -> bool:
+        """Uses scoped settings and guild author/admin authorization."""
 
-        if not args or args[0] in ("查看", "查询", "current"):
-            await self.send_reply(message, f"当前老婆刷新时间：{current_refresh_time}")
-            return
+        async def reply(content: str) -> None:
+            await self.reply_guild(message, content)
 
-        roles = getattr(message.member, "roles", None)
-        
-
-        refresh_time = parse_refresh_time(args[0])
-        if refresh_time is None:
-            await self.send_reply(
-                message,
-                "格式错误，应为 /设置老婆刷新时间 <HH:MM>，例如：/设置老婆刷新时间 08:00",
+        async def authorize() -> bool:
+            roles = getattr(message.member, "roles", None)
+            return get_dao().owners.contains(message.author.id) or (
+                isinstance(roles, list)
+                and any(role in ("2", "4", 2, 4) for role in roles)
             )
-            return
 
-        if dao.settings.set_wife_refresh_time(refresh_time):
-            await self.send_reply(message, f"老婆刷新时间已设置为：{refresh_time}")
-        else:
-            await self.send_reply(message, "设置老婆刷新时间失败，请稍后再试！")
+        return await refresh_settings.run(
+            "guild", message.guild_id, args, reply, authorize
+        )
+
+    async def execute_group(
+        self, message: botpy_message.GroupMessage, args: list[str]
+    ) -> bool:
+        """Uses current group roles without inheriting channel owner access."""
+
+        async def reply(content: str) -> None:
+            await self.reply_group(message, content)
+
+        async def authorize() -> bool:
+            return await group_members.is_group_admin(self.client.api, message)
+
+        return await refresh_settings.run(
+            "group",
+            command_replies.require_id(message.group_openid),
+            args,
+            reply,
+            authorize,
+        )

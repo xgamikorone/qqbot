@@ -99,10 +99,10 @@ class RegisteredHelpTests(unittest.TestCase):
         self.assertIn("昵称管理帮助", catalog.render("查uid"))
         self.assertIn("查询当前分类舰长数", catalog.render("num_guards"))
 
-    def test_owner_feature_is_filtered_from_public_overview(self):
+    def test_refresh_query_is_visible_in_public_overview(self) -> None:
         catalog = HelpCatalog(_command_registry)
 
-        self.assertNotIn("/老婆刷新时间", catalog.render())
+        self.assertIn("/老婆刷新时间", catalog.render())
         self.assertIn("/老婆刷新时间", catalog.render(include_owner=True))
 
 

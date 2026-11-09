@@ -7,14 +7,15 @@ import json
 from botpy import api as botpy_api
 from botpy import errors as botpy_errors
 from botpy import http as botpy_http
-
+from botpy import message as botpy_message
 
 @dataclasses.dataclass(frozen=True)
 class MemberName:
-    """A display name result, without granting any group permissions."""
+    """A live profile result; cached display names must not authorize writes."""
 
     name: str = ""
     permission_denied: bool = False
+    role: str = ""
 
 
 async def fetch_member_name(
@@ -40,7 +41,11 @@ async def fetch_member_name(
         if result.get("code", 0) not in {0, "0"}:
             return MemberName()
         name = result.get("username")
-        return MemberName(name.strip() if isinstance(name, str) else "")
+        role = result.get("member_role")
+        return MemberName(
+            name.strip() if isinstance(name, str) else "",
+            role=role if role in ("member", "admin", "owner") else "",
+        )
     except Exception as error:
         # SDK exceptions may discard the numeric API code; recognize its
         # permission exception or known permission message without logging it.
@@ -50,3 +55,18 @@ async def fetch_member_name(
             or "应用无接口访问权限" in str(error)
         )
         return MemberName(permission_denied=denied)
+
+
+async def is_group_admin(
+    api: botpy_api.BotAPI, message: botpy_message.GroupMessage
+) -> bool:
+    """Checks current role, never nickname cache or channel owner IDs."""
+    role = getattr(message.author, "member_role", "")
+    if role in ("member", "admin", "owner"):
+        return role in ("admin", "owner")
+    if not message.group_openid or not message.author.member_openid:
+        return False
+    member = await fetch_member_name(
+        api, message.group_openid, message.author.member_openid
+    )
+    return member.role in ("admin", "owner") and not member.permission_denied

@@ -287,7 +287,6 @@ class GroupWifeTests(unittest.IsolatedAsyncioTestCase):
             "wife_add",
             "wife_update",
             "wife_enable",
-            "wife_refresh_time",
         ):
             command = self.manager.commands[alias]
             self.assertFalse(command.supports_scene("group"))

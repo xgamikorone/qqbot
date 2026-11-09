@@ -2,6 +2,12 @@ import sqlite3
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS wife_refresh_settings (
+    scene TEXT NOT NULL CHECK (scene IN ('guild', 'group')),
+    scope_id TEXT NOT NULL,
+    refresh_time TEXT NOT NULL,
+    PRIMARY KEY (scene, scope_id)
+);
 CREATE TABLE IF NOT EXISTS group_wife_daily (
     group_openid TEXT NOT NULL,
     member_openid TEXT NOT NULL,

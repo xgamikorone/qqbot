@@ -1,11 +1,13 @@
 import logging
 import sqlite3
+import re
+import typing
 
 from utils.time_utils import beijing_now_str
 
 
 logger = logging.getLogger(__name__)
-DEFAULT_WIFE_REFRESH_TIME = "08:00"
+DEFAULT_WIFE_REFRESH_TIME = "00:00"
 
 
 class SettingsRepository:
@@ -39,3 +41,36 @@ class SettingsRepository:
 
     def set_wife_refresh_time(self, refresh_time: str) -> bool:
         return self.set("wife_refresh_time", refresh_time)
+
+    def get_wife_refresh_time(
+        self, scene: typing.Literal["guild", "group"], scope_id: str
+    ) -> str:
+        """Reads a scoped override, falling back to the original global value."""
+        if scene not in {"guild", "group"} or not scope_id:
+            raise ValueError("无效的作用域")
+        row = self.conn.execute(
+            "SELECT refresh_time FROM wife_refresh_settings WHERE scene=? AND scope_id=?",
+            (scene, scope_id),
+        ).fetchone()
+        return row[0] if row else self.wife_refresh_time
+
+    def set_scoped_wife_refresh_time(
+        self, scene: typing.Literal["guild", "group"], scope_id: str, value: str
+    ) -> bool:
+        """Changes only the current scope, preserving the global default."""
+        if (
+            scene not in {"guild", "group"}
+            or not scope_id
+            or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value)
+        ):
+            raise ValueError("无效的刷新时间或作用域")
+        try:
+            with self.conn:
+                self.conn.execute(
+                    "INSERT INTO wife_refresh_settings VALUES (?, ?, ?) ON CONFLICT(scene, scope_id) DO UPDATE SET refresh_time=excluded.refresh_time",
+                    (scene, scope_id, value),
+                )
+            return True
+        except sqlite3.Error:
+            logger.warning("设置当前作用域刷新时间失败")
+            return False

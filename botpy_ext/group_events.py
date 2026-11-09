@@ -26,6 +26,12 @@ def install_group_parser(
             typing.cast(gateway.MessagePayload, data),
         )
         author = data.get("author")
+        role = author.get("member_role") if isinstance(author, dict) else None
+        setattr(
+            message.author,
+            "member_role",
+            role if role in ("member", "admin", "owner") else "",
+        )
         name = author.get("username") if isinstance(author, dict) else None
         setattr(
             message.author,
