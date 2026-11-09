@@ -29,6 +29,33 @@ def row(
     }
 
 
+def expanded_id(
+    channel: int = 42, sequence: int = 8, timestamp: int = 101
+) -> str:
+    """Makes a synthetic expanded-format fixture, without production IDs."""
+    data = bytearray()
+    for number, value in (
+        (1, 123),
+        (2, channel),
+        (3, b"example"),
+        (4, 3840),
+        (5, 0),
+        (6, 456),
+        (7, sequence),
+        (8, sequence),
+        (9, timestamp),
+        (11, 0),
+    ):
+        if isinstance(value, bytes):
+            data.extend(message_id._encode_varint(number << 3 | 2))
+            data.extend(message_id._encode_varint(len(value)))
+            data.extend(value)
+        else:
+            data.extend(message_id._encode_varint(number << 3))
+            data.extend(message_id._encode_varint(value))
+    return data.hex()
+
+
 class SummaryTests(unittest.IsolatedAsyncioTestCase):
     """Uses actual fetch/model orchestration with mocked transports only."""
 
@@ -165,6 +192,53 @@ class SummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("requested_id='requested-id'", output)
         self.assertIn("returned_id='returned-id'", output)
         self.assertNotIn("private conversation text", output)
+
+    async def test_expanded_response_matches_compact_reference_with_different_field_one(
+        self,
+    ) -> None:
+        compact = message_id.encode_message_id(999, 42, 8, 101)
+        expanded = expanded_id()
+        self.api.get_message.side_effect = None
+        self.api.get_message.return_value = row(expanded, 8, "42")
+        result = await channel_history.get_message(self.api, "42", compact)
+        self.assertEqual(expanded, result.id)
+        self.assertFalse(
+            channel_history._same_id(compact, expanded_id(sequence=9), "42")
+        )
+        self.assertFalse(
+            channel_history._same_id(compact, expanded_id(timestamp=102), "42")
+        )
+        self.assertFalse(
+            channel_history._same_id(compact, expanded_id(channel=43), "42")
+        )
+        self.assertFalse(
+            channel_history._same_id(compact, expanded + "6000", "42")
+        )
+
+    async def test_list_compact_ids_match_expanded_endpoint_ids(self) -> None:
+        start = message_id.encode_message_id(999, 42, 8, 101)
+        end = message_id.encode_message_id(999, 42, 9, 102)
+        self.api.get_message.side_effect = lambda channel, identifier: row(
+            (
+                expanded_id(sequence=8, timestamp=101)
+                if identifier == start
+                else expanded_id(sequence=9, timestamp=102)
+            ),
+            8 if identifier == start else 9,
+            "42",
+        )
+        self.api._http.request.return_value = [row(start, 8, "42")]
+        records = await channel_history.read_range(self.api, "42", start, end)
+        self.assertEqual([8, 9], [item.sequence for item in records])
+
+    def test_unknown_and_truncated_expanded_layouts_rejected(self) -> None:
+        for value in (
+            expanded_id()[:-2],
+            expanded_id() + "3808",
+            expanded_id() + "6000",
+        ):
+            with self.assertRaises(ValueError):
+                message_id.decode_lookup_identity(value)
 
     async def test_same_message_range(self) -> None:
         records = await channel_history.read_range(self.api, "c", "a", "a")

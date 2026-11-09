@@ -13,29 +13,23 @@ _LOG = logging.getLogger(__name__)
 
 
 def _same_id(reference: str, returned: str, channel: str) -> bool:
-    """Accepts encoding variants only when all decoded fields agree.
-
-    The experimental codec never grants access or supplies a new ID. QQ's
-    response must still belong to the requested channel. Timestamp differences
-    remain mismatches until the actual wire behavior can be established.
-    """
+    """Checks observed lookup representations without creating new IDs."""
     if reference == returned:
         return True
     try:
-        first = message_id.decode_message_id(reference)
-        second = message_id.decode_message_id(returned)
+        first = message_id.decode_lookup_identity(reference)
+        second = message_id.decode_lookup_identity(returned)
     except ValueError:
-        _LOG.warning("查询消息ID不一致: codec_supported=False")
         return False
-    _LOG.info(
-        "查询消息ID表示差异: guild_equal=%s channel_equal=%s "
-        "sequence_equal=%s timestamp_equal=%s",
-        first.guild_id == second.guild_id,
-        first.channel_id == second.channel_id,
-        first.sequence == second.sequence,
-        first.timestamp == second.timestamp,
-    )
-    return first == second and str(first.channel_id) == channel
+    if first[0] == second[0] == "compact":
+        return (
+            message_id.decode_message_id(reference)
+            == message_id.decode_message_id(returned)
+            and str(first[1]) == channel
+        )
+    if {first[0], second[0]} == {"compact", "expanded"}:
+        return first[1:] == second[1:] and str(first[1]) == channel
+    return reference.lower() == returned.lower() and str(first[1]) == channel
 
 
 class HistoryError(ValueError):
@@ -174,6 +168,12 @@ async def read_range(
             reverse=True,
         )
         for row in parsed:
+            # Single-message and list endpoints may use different observed
+            # representations. Preserve actual API IDs; never synthesize one.
+            if _same_id(start.id, row.id, channel):
+                row = dataclasses.replace(row, id=start.id)
+            elif _same_id(end.id, row.id, channel):
+                row = dataclasses.replace(row, id=end.id)
             if (
                 not use_sequence
                 and order(row) == order(start)

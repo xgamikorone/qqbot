@@ -91,13 +91,72 @@ def encode_message_id(guild_id: int, channel_id: int, sequence: int,
         for number, value in zip(_FIELDS, values)).hex()
 
 
-def generate_neighbor_message_id(message_id: str,
-                                 sequence_offset: int,
-                                 timestamp: int | None = None) -> str:
+def decode_lookup_identity(value: str) -> tuple[str, int, int, int]:
+    """Recognizes compact/expanded lookup IDs observed in user API samples.
+
+    This is experimental lookup equivalence, not authorization. Field 1 has
+    different values across these formats and is not treated as a guild ID.
+    Unknown layouts, duplicate fields and unsupported wire types fail closed.
+    """
+    if (
+        not isinstance(value, str)
+        or len(value) > 512
+        or len(value) % 2
+        or not re.fullmatch(r"[0-9a-fA-F]+", value)
+    ):
+        raise ValueError("Invalid lookup ID")
+    data = bytes.fromhex(value)
+    fields: dict[int, int | bytes] = {}
+    offset = 0
+    while offset < len(data):
+        tag, offset = _decode_varint(data, offset)
+        number, wire = tag >> 3, tag & 7
+        if number in fields:
+            raise ValueError("Duplicate lookup ID field")
+        if wire == 0:
+            item, offset = _decode_varint(data, offset)
+            fields[number] = item
+        elif wire == 2 and number == 3:
+            size, offset = _decode_varint(data, offset)
+            if offset + size > len(data):
+                raise ValueError("Truncated lookup ID field")
+            fields[number] = data[offset : offset + size]
+            offset += size
+        else:
+            raise ValueError("Unsupported lookup ID wire type")
+    if set(fields) == {1, 2, 7, 9}:
+        layout = "compact"
+    elif (
+        set(fields) == {1, 2, 3, 4, 5, 6, 7, 8, 9, 11}
+        and isinstance(fields[3], bytes)
+        and fields[7] == fields[8]
+    ):
+        layout = "expanded"
+    else:
+        raise ValueError("Unsupported lookup ID layout")
+    channel, sequence, timestamp = fields[2], fields[7], fields[9]
+    if not all(
+        isinstance(item, int) for item in (channel, sequence, timestamp)
+    ):
+        raise ValueError("Invalid lookup identity fields")
+    assert (
+        isinstance(channel, int)
+        and isinstance(sequence, int)
+        and isinstance(timestamp, int)
+    )
+    return layout, channel, sequence, timestamp
+
+
+def generate_neighbor_message_id(
+    message_id: str, sequence_offset: int, timestamp: int | None = None
+) -> str:
     """Builds a uint64 sequence candidate, preserving time by default."""
     if type(sequence_offset) is not int:
         raise ValueError("Sequence offset must be an integer")
     info = decode_message_id(message_id)
-    return encode_message_id(info.guild_id, info.channel_id,
-                             info.sequence + sequence_offset,
-                             info.timestamp if timestamp is None else timestamp)
+    return encode_message_id(
+        info.guild_id,
+        info.channel_id,
+        info.sequence + sequence_offset,
+        info.timestamp if timestamp is None else timestamp,
+    )
