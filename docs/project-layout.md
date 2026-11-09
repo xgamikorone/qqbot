@@ -6,6 +6,9 @@
 | --- | --- |
 | `main.py` | 机器人启动、事件接收和模块装配 |
 | `commands/` | 用户命令及命令管理 |
+| `commands/summary.py` | 引用起止消息与开始总结三步入口 |
+| `chat/summary.py` | 临时范围选择、隔离模型请求及总结额度 |
+| `botpy_ext/channel_history.py` | 按频道序号分页拉取可见消息区间 |
 | `commands/manager.py` | 共用命令解析、场景分发、能力及权限检查 |
 | `commands/text_query.py` | 文本查询共用频道/群聊入口和群文本分段 |
 | `commands/image_query.py` | 图片查询共用入口、跨场景冷却及串行绘图 |

@@ -20,6 +20,7 @@ from commands import CommandManager
 from chat.config import load_config as load_chat_config
 from chat.model_client import ModelClient
 from chat.service import ChatService
+from chat import summary as chat_summary
 from dao import get_dao
 from live_forwarding import server as forwarding
 from messaging import audits as message_audits
@@ -45,9 +46,13 @@ class MyClient(group_events.GroupNicknameClient):
         )
         self.cmd_manager = CommandManager(self)
         self.chat_service = None
+        self.summary_service: chat_summary.SummaryService | None = None
         try:
             chat_config = load_chat_config()
             if chat_config.enabled:
+                self.summary_service = chat_summary.SummaryService(
+                    chat_config, self.api, get_dao().chat
+                )
                 self.chat_service = ChatService(
                     chat_config, get_dao().chat, ModelClient(chat_config)
                 )
@@ -80,6 +85,8 @@ class MyClient(group_events.GroupNicknameClient):
         await self.live_forwarding.start()
 
     async def close(self) -> None:
+        if self.summary_service is not None:
+            await self.summary_service.close()
         # Finish manual discovery requests before closing their storage.
         await self.admin_server.stop()
         await self.live_forwarding.close()

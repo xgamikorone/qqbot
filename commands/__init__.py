@@ -10,8 +10,9 @@ from . import (
     revenue_rank,
     revenue_rank_v2,
     emoji,
-    nickname, 
+    nickname,
     chat,
+    summary,
     stats,
     online,
     guards,
@@ -33,7 +34,7 @@ from . import (
     owner,
     poll,
     recall,
-    mute
+    mute,
 )
 
 __all__ = ["command", "Command", "_command_registry", "CommandManager", "_command_name_to_formal_name", "_command_alias_to_name"]
