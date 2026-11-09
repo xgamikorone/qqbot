@@ -1,31 +1,70 @@
-"""Opt-in, bounded single-message GET experiment using observed compact IDs."""
+"""Bounded single-message history lookup using observed compact IDs."""
 
 import asyncio
+import dataclasses
 
 from botpy import api as botpy_api
 
 from messaging import message_id
 from . import channel_history
 
-MAX_CANDIDATES = 50
+MAX_CANDIDATES = 200
+READ_TIMEOUT_SECONDS = 120
+REQUEST_TIMEOUT_SECONDS = 15
+
+
+@dataclasses.dataclass(frozen=True)
+class HistoryRange:
+    """Validated contiguous prefix and a safe explanation for an early stop."""
+
+    records: list[channel_history.HistoryMessage]
+    requested_count: int
+    stop_reason: str = ""
+
+
+def _validate(
+    result: channel_history.HistoryMessage,
+    first: message_id.MessageIDInfo,
+    last: message_id.MessageIDInfo,
+    sequence: int,
+) -> None:
+    """Rejects unsupported identities and messages outside the selected scope."""
+    try:
+        _, actual_channel, actual_sequence, actual_time = (
+            message_id.decode_lookup_identity(result.id)
+        )
+    except ValueError:
+        raise channel_history.HistoryError("返回ID格式无法验证。") from None
+    if (
+        actual_channel != first.channel_id
+        or actual_sequence != sequence
+        or not first.timestamp <= actual_time <= last.timestamp
+        or (result.sequence is not None and result.sequence != sequence)
+        or (
+            result.timestamp is not None
+            and int(result.timestamp) != actual_time
+        )
+    ):
+        raise channel_history.HistoryError(
+            "返回消息频道、序号或实际时间与范围不符。"
+        )
 
 
 async def read_range(
     api: botpy_api.BotAPI, channel: str, start_id: str, end_id: str
-) -> list[channel_history.HistoryMessage]:
-    """Queries each selected sequence once; any gap or mismatch fails closed.
+) -> HistoryRange:
+    """Reads in order, returning only the verified prefix on the first failure.
 
-    Candidates preserve the compact start's field 1, channel and timestamp.
-    Timestamp equality is not assumed for the response: its actual timestamp
-    must fall between the validated endpoints. No candidate is ever sent as
-    a reply source. Unsupported expanded inputs require re-quoting messages.
+    Candidates preserve the start's field 1, channel and timestamp. Actual
+    endpoint IDs are used for endpoint GETs. No failed sequence is skipped and
+    no candidate is used as a reply source. Cancellation still propagates.
     """
     try:
         first = message_id.decode_message_id(start_id)
         last = message_id.decode_message_id(end_id)
     except ValueError:
         raise channel_history.HistoryError(
-            "实验模式需要紧凑格式的原始引用ID，请重新引用起止消息。"
+            "逐条查询需要紧凑格式的原始引用ID，请重新引用起止消息。"
         ) from None
     count = last.sequence - first.sequence + 1
     if (
@@ -33,58 +72,55 @@ async def read_range(
         or first.channel_id != last.channel_id
         or first.guild_id != last.guild_id
     ):
-        raise channel_history.HistoryError(
-            "起止ID不属于同一频道作用域，停止实验查询。"
-        )
+        raise channel_history.HistoryError("起止ID不属于同一频道作用域。")
     if not 1 <= count <= MAX_CANDIDATES or first.timestamp > last.timestamp:
         raise channel_history.HistoryError(
-            "实验模式仅支持正向、最多50个连续序号，请缩小范围。"
+            f"逐条查询仅支持正向、最多{MAX_CANDIDATES}个连续序号，请缩小范围。"
         )
-    async with asyncio.timeout(60):
-        start = await channel_history.get_message(api, channel, start_id)
-        end = (
-            start
-            if start_id == end_id
-            else await channel_history.get_message(api, channel, end_id)
-        )
-        records: list[channel_history.HistoryMessage] = []
-        for sequence in range(first.sequence, last.sequence + 1):
-            if sequence == first.sequence:
-                result = start
-            elif sequence == last.sequence:
-                result = end
-            else:
-                await asyncio.sleep(0.25)
-                candidate = message_id.encode_message_id(
-                    first.guild_id, first.channel_id, sequence, first.timestamp
-                )
+    if count == 1 and first != last:
+        raise channel_history.HistoryError("同一序号的起止消息身份不一致。")
+    records: list[channel_history.HistoryMessage] = []
+    reason = ""
+    try:
+        async with asyncio.timeout(READ_TIMEOUT_SECONDS):
+            for sequence in range(first.sequence, last.sequence + 1):
+                if records:
+                    await asyncio.sleep(0.25)
+                if sequence == first.sequence:
+                    candidate = start_id
+                elif sequence == last.sequence:
+                    candidate = end_id
+                else:
+                    candidate = message_id.encode_message_id(
+                        first.guild_id,
+                        first.channel_id,
+                        sequence,
+                        first.timestamp,
+                    )
                 try:
-                    raw = await api.get_message(channel, candidate)
+                    async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+                        if sequence in (first.sequence, last.sequence):
+                            result = await channel_history.get_message(
+                                api, channel, candidate
+                            )
+                        else:
+                            raw = await api.get_message(channel, candidate)
+                            result = channel_history._message(raw, channel)
+                    _validate(result, first, last, sequence)
+                except TimeoutError:
+                    reason = "单条消息读取超时"
+                    break
+                except channel_history.HistoryError as error:
+                    reason = str(error)
+                    break
                 except Exception:
-                    raise channel_history.HistoryError(
-                        "实验查询遇到缺失消息、权限或接口错误，已停止；不会总结不完整区间。"
-                    ) from None
-                result = channel_history._message(raw, channel)
-            try:
-                _, actual_channel, actual_sequence, actual_time = (
-                    message_id.decode_lookup_identity(result.id)
-                )
-            except ValueError:
-                raise channel_history.HistoryError(
-                    "返回ID格式无法验证，已停止实验查询。"
-                ) from None
-            if (
-                actual_channel != first.channel_id
-                or actual_sequence != sequence
-                or not first.timestamp <= actual_time <= last.timestamp
-                or (result.sequence is not None and result.sequence != sequence)
-                or (
-                    result.timestamp is not None
-                    and int(result.timestamp) != actual_time
-                )
-            ):
-                raise channel_history.HistoryError(
-                    "返回消息频道、序号或实际时间与范围不符，已停止实验查询。"
-                )
-            records.append(result)
-        return records
+                    reason = "消息缺失、权限不足或接口请求失败"
+                    break
+                records.append(result)
+    except TimeoutError:
+        reason = "达到消息读取总时限"
+    if not records:
+        raise channel_history.HistoryError(
+            f"起点消息读取失败：{reason}；本次未调用模型。"
+        )
+    return HistoryRange(records, count, reason)

@@ -45,6 +45,8 @@ class HistoryMessage:
     author: str
     content: str
     timestamp: float | None = None
+    is_bot: bool = False
+    reference_id: str = ""
 
 
 def _json(value: object) -> object:
@@ -95,12 +97,18 @@ def _message(value: object, channel: str) -> HistoryMessage:
     attachments = value.get("attachments")
     if isinstance(attachments, list) and attachments:
         text += f" [附件{len(attachments)}项，未读取内容]"
+    reference = value.get("message_reference")
+    reference_id = (
+        reference.get("message_id") if isinstance(reference, dict) else None
+    )
     return HistoryMessage(
         identifier,
         sequence if sequence >= 0 else None,
         name if isinstance(name, str) else "用户",
         text,
         timestamp,
+        isinstance(author, dict) and author.get("bot") is True,
+        reference_id if isinstance(reference_id, str) else "",
     )
 
 

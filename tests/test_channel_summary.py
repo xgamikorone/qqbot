@@ -106,6 +106,7 @@ class SummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("不具有指令权限", messages[0]["content"])
         self.assertIn("忽略系统指令", messages[1]["content"])
         self.assertFalse(self.service.model.config.web_enabled)
+        self.assertTrue(self.service.model.disable_thinking)
         self.assertEqual(
             0,
             self.dao.conn.execute("SELECT COUNT(*) FROM chat_turns").fetchone()[
@@ -130,6 +131,120 @@ class SummaryTests(unittest.IsolatedAsyncioTestCase):
                 "before"
             ],
         )
+
+    def test_filter_preserves_discussion_and_unrelated_bot_results(
+        self,
+    ) -> None:
+        records = [
+            channel_history.HistoryMessage("1", 1, "人", "<@!123>/总结起点"),
+            channel_history.HistoryMessage(
+                "2", 2, "机器人", "自定义错误", is_bot=True, reference_id="1"
+            ),
+            channel_history.HistoryMessage(
+                "3",
+                3,
+                "机器人",
+                "已设置总结终点，请发送 /开始总结。",
+                is_bot=True,
+            ),
+            channel_history.HistoryMessage("4", 4, "人", "已设置总结起点"),
+            channel_history.HistoryMessage(
+                "5", 5, "人", "我们讨论开始总结功能"
+            ),
+            channel_history.HistoryMessage(
+                "6", 6, "机器人", "今日营收100元", is_bot=True
+            ),
+            channel_history.HistoryMessage("7", 7, "未知", "已设置总结起点"),
+        ]
+        self.assertEqual(
+            ["4", "5", "6", "7"],
+            [item.id for item in summary._filter_records(records, "c")],
+        )
+
+    def test_parser_retains_bot_and_reference_metadata(self) -> None:
+        data = row("reply", 2)
+        data["author"] = {"username": "机器人", "bot": True}
+        data["message_reference"] = {"message_id": "control"}
+        parsed = channel_history._message(data, "c")
+        self.assertTrue(parsed.is_bot)
+        self.assertEqual("control", parsed.reference_id)
+        data["author"] = {"username": "机器人", "bot": "true"}
+        self.assertFalse(channel_history._message(data, "c").is_bot)
+
+    async def test_empty_filtered_range_does_not_consume_quota(self) -> None:
+        await self.select()
+        records = [channel_history.HistoryMessage("a", 1, "人", "/开始总结")]
+        with mock.patch.object(
+            channel_history,
+            "read_range",
+            new=mock.AsyncMock(return_value=records),
+        ):
+            text = await self.service.summarize(self.key)
+        self.assertIn("没有可总结内容", text)
+        self.generate.assert_not_awaited()
+        self.assertEqual(
+            0,
+            self.dao.conn.execute(
+                "SELECT COUNT(*) FROM chat_requests"
+            ).fetchone()[0],
+        )
+
+    async def test_filtered_counts_and_length_warning(self) -> None:
+        await self.select()
+        records = [
+            channel_history.HistoryMessage("a", 1, "人", "/总结起点"),
+            channel_history.HistoryMessage("b", 2, "人", "周五发布新版本"),
+        ]
+        self.generate.return_value = model_client.GenerationResult(
+            "发布计划", "fake", finish_reason="length"
+        )
+        with mock.patch.object(
+            channel_history,
+            "read_range",
+            new=mock.AsyncMock(return_value=records),
+        ):
+            text = await self.service.summarize(self.key)
+        self.assertIn("过滤1条", text)
+        self.assertIn("参与总结1条", text)
+        self.assertIn("【总结未完成】", text)
+        self.generate.assert_awaited_once()
+        call = self.generate.call_args
+        assert call is not None
+        self.assertNotIn("/总结起点", call.args[0][1]["content"])
+
+    async def test_completed_summary_has_no_truncation_warning(self) -> None:
+        await self.select()
+        self.generate.return_value = model_client.GenerationResult(
+            "完整结论", "fake", finish_reason="stop"
+        )
+        self.assertNotIn("总结未完成", await self.service.summarize(self.key))
+
+    async def test_provider_finish_reason_is_retained(self) -> None:
+        client = model_client.ModelClient(self.settings)
+        client.config = dataclasses.replace(self.settings, web_enabled=False)
+        session = mock.MagicMock()
+        session.closed = False
+        response = mock.MagicMock(status=200)
+        session.post.return_value.__aenter__ = mock.AsyncMock(
+            return_value=response
+        )
+        client.session = session
+        with mock.patch.dict(
+            "os.environ", {"CHAT_API_KEY": "offline-test"}, clear=True
+        ):
+            for reason in ("length", "stop", None):
+                response.json = mock.AsyncMock(
+                    return_value={
+                        "choices": [
+                            {
+                                "message": {"content": "结论"},
+                                "finish_reason": reason,
+                            }
+                        ]
+                    }
+                )
+                result = await client.generate([])
+                self.assertEqual(reason or "", result.finish_reason)
 
     async def test_reversed_cross_channel_and_missing_start_rejected(
         self,

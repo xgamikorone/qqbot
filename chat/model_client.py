@@ -2,11 +2,80 @@ import asyncio
 import os
 from collections.abc import Sequence
 import dataclasses
+import logging
 from typing import Any
 import aiohttp
 from chat import config as chat_config
 from chat import channel_text
 from chat import web_tools
+
+_LOG = logging.getLogger(__name__)
+
+
+def _supports_direct_answer(base: str, model: str) -> bool:
+    """Limits provider-specific thinking controls to documented endpoints."""
+    if base in ("https://api.deepseek.com", "https://api.deepseek.com/v1"):
+        return True
+    return base in (
+        "https://open.bigmodel.cn/api/paas/v4",
+        "https://api.z.ai/api/paas/v4",
+    ) and model.lower() in {
+        "glm-4.5",
+        "glm-4.5-air",
+        "glm-4.5-flash",
+        "glm-4.6",
+        "glm-4.7",
+        "glm-4.7-flash",
+        "glm-4.7-flashx",
+    }
+
+
+def _answer_text(choice: object, usage: object, max_tokens: int) -> str:
+    """Extracts final text or reports safe, bounded empty-answer diagnostics.
+
+    Provider JSON is untyped. Bodies, reasoning, refusal text, model names,
+    endpoint URLs and unknown finish reasons are never logged.
+    """
+    if not isinstance(choice, dict) or not isinstance(
+        choice.get("message"), dict
+    ):
+        raise ChatError("聊天模型返回格式异常。")
+    message = choice["message"]
+    text = message.get("content")
+    if isinstance(text, str) and text.strip():
+        return text
+    reason = choice.get("finish_reason")
+    safe_reason = (
+        reason
+        if reason in ("stop", "length", "content_filter", "tool_calls")
+        else "unknown"
+    )
+    reasoning = message.get("reasoning_content")
+    reasoning_chars = len(reasoning) if isinstance(reasoning, str) else 0
+    tokens = usage.get("completion_tokens") if isinstance(usage, dict) else None
+    output_tokens = tokens if type(tokens) is int and tokens >= 0 else -1
+    _LOG.warning(
+        "Model returned no final answer: finish_reason=%s content_type=%s "
+        "reasoning_chars=%d output_tokens=%d max_tokens=%d refusal_present=%s",
+        safe_reason,
+        type(text).__name__,
+        reasoning_chars,
+        output_tokens,
+        max_tokens,
+        bool(message.get("refusal")),
+    )
+    if reason == "content_filter" or message.get("refusal"):
+        raise ChatError("模型未提供回答：响应被内容策略拦截或拒绝。")
+    if reason == "length":
+        raise ChatError(
+            "模型在生成有效正文前已达到输出长度上限；"
+            "请检查模型思考模式或提高 max_output_tokens。"
+        )
+    if reasoning_chars:
+        raise ChatError(
+            "模型仅返回思考内容，没有最终回答；请检查模型思考模式配置。"
+        )
+    raise ChatError("模型未返回有效回答；已记录不含正文的响应诊断信息。")
 
 
 class ChatError(Exception):
@@ -20,13 +89,17 @@ class GenerationResult:
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
+    finish_reason: str = ""
 
 
 class ModelClient:
     """Compatible text adapter with optional bounded DeepSeek web tools."""
 
-    def __init__(self, config: chat_config.ChatConfig) -> None:
+    def __init__(
+        self, config: chat_config.ChatConfig, *, disable_thinking: bool = False
+    ) -> None:
         self.config = config
+        self.disable_thinking = disable_thinking
         self.session: aiohttp.ClientSession | None = None
 
     async def generate(self, messages: Sequence[dict[str,
@@ -57,16 +130,20 @@ class ModelClient:
                     self._with_tools(messages, base, key, model),
                     timeout=self.config.web_timeout_seconds,
                 )
+            payload: dict[str, object] = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "max_tokens": self.config.max_output_tokens,
+            }
+            if self.disable_thinking and _supports_direct_answer(base, model):
+                payload["thinking"] = {"type": "disabled"}
             async with self.session.post(
-                    base + "/chat/completions",
-                    headers={"Authorization": "Bearer " + key},
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "stream": False,
-                        "max_tokens": self.config.max_output_tokens
-                    },
-                    allow_redirects=False) as response:
+                base + "/chat/completions",
+                headers={"Authorization": "Bearer " + key},
+                json=payload,
+                allow_redirects=False,
+            ) as response:
                 if response.status in (401, 403):
                     raise ChatError("聊天模型鉴权失败，请联系管理员。")
                 if response.status == 429:
@@ -74,13 +151,18 @@ class ModelClient:
                 if response.status != 200:
                     raise ChatError("聊天模型暂时不可用。")
                 data = await response.json()
-            text = data["choices"][0]["message"]["content"]
-            if not isinstance(text, str) or not text.strip():
-                raise ChatError("模型未返回有效回答。")
             usage = data.get("usage") or {}
-            return GenerationResult(channel_text.without_links(text), model,
-                                    int(usage.get("prompt_tokens", 0)),
-                                    int(usage.get("completion_tokens", 0)))
+            text = _answer_text(
+                data["choices"][0], usage, self.config.max_output_tokens
+            )
+            reason = data["choices"][0].get("finish_reason")
+            return GenerationResult(
+                channel_text.without_links(text),
+                model,
+                int(usage.get("prompt_tokens", 0)),
+                int(usage.get("completion_tokens", 0)),
+                reason if isinstance(reason, str) else "",
+            )
         except asyncio.TimeoutError:
             raise ChatError("聊天模型请求超时，请稍后再试。") from None
         except (aiohttp.ClientError, ValueError, KeyError, IndexError,
@@ -182,12 +264,17 @@ class ModelClient:
                         "content": result
                     })
                 continue
-            text = message.get("content")
-            if not isinstance(text, str) or not text.strip():
-                raise ChatError("模型未返回有效回答。")
+            text = _answer_text(
+                data["choices"][0], usage, self.config.max_output_tokens
+            )
+            reason = data["choices"][0].get("finish_reason")
             return GenerationResult(
-                channel_text.without_links(text + tools.citations()), model,
-                input_tokens, output_tokens)
+                channel_text.without_links(text + tools.citations()),
+                model,
+                input_tokens,
+                output_tokens,
+                reason if isinstance(reason, str) else "",
+            )
         raise ChatError("联网工具调用已到上限，请缩小问题范围。")
 
     async def close(self) -> None:
