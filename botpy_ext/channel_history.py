@@ -1,6 +1,7 @@
 """Bounded channel history retrieval using official message sequence fields."""
 
 import dataclasses
+import datetime
 import json
 
 from botpy import api as botpy_api
@@ -16,9 +17,10 @@ class HistoryMessage:
     """Minimal transient text-only representation of one visible message."""
 
     id: str
-    sequence: int
+    sequence: int | None
     author: str
     content: str
+    timestamp: float | None = None
 
 
 def _json(value: object) -> object:
@@ -37,18 +39,31 @@ def _message(value: object, channel: str) -> HistoryMessage:
     if not isinstance(value, dict) or value.get("channel_id") != channel:
         raise HistoryError("消息不属于当前子频道或接口数据不完整。")
     identifier, seq = value.get("id"), value.get("seq_in_channel")
-    if (
-        not isinstance(identifier, str)
-        or not identifier
-        or isinstance(seq, bool)
-    ):
+    if not isinstance(identifier, str) or not identifier:
         raise HistoryError("消息缺少有效 ID 或频道序号。")
     try:
-        sequence = int(seq) if isinstance(seq, (str, int)) else -1
+        sequence = (
+            int(seq)
+            if isinstance(seq, (str, int)) and not isinstance(seq, bool)
+            else -1
+        )
     except ValueError:
         sequence = -1
-    if sequence < 0:
-        raise HistoryError("接口未返回有效频道序号，无法确定消息范围。")
+    stamp = value.get("timestamp")
+    timestamp = None
+    if isinstance(stamp, str):
+        try:
+            parsed_time = datetime.datetime.fromisoformat(
+                stamp.replace("Z", "+00:00")
+            )
+            if parsed_time.tzinfo is not None:
+                timestamp = parsed_time.timestamp()
+        except (ValueError, OverflowError, OSError):
+            pass
+    if sequence < 0 and timestamp is None:
+        raise HistoryError(
+            "接口没有返回有效频道序号或带时区的发送时间，无法确定消息范围。"
+        )
     author = value.get("author")
     name = author.get("username") if isinstance(author, dict) else None
     content = value.get("content")
@@ -57,7 +72,11 @@ def _message(value: object, channel: str) -> HistoryMessage:
     if isinstance(attachments, list) and attachments:
         text += f" [附件{len(attachments)}项，未读取内容]"
     return HistoryMessage(
-        identifier, sequence, name if isinstance(name, str) else "用户", text
+        identifier,
+        sequence if sequence >= 0 else None,
+        name if isinstance(name, str) else "用户",
+        text,
+        timestamp,
     )
 
 
@@ -82,12 +101,22 @@ async def read_range(
     """Walks backwards to the exact start; never summarizes a partial range."""
     start = await get_message(api, channel, start_id)
     end = await get_message(api, channel, end_id)
-    if start.sequence > end.sequence:
-        raise HistoryError("起点晚于终点，请重新标记范围。")
     if start_id == end_id:
         return [start]
-    if start.sequence == end.sequence:
-        raise HistoryError("不同消息的频道序号相同，无法确定范围。")
+    use_sequence = start.sequence is not None and end.sequence is not None
+
+    def order(message: HistoryMessage) -> int | float:
+        value = message.sequence if use_sequence else message.timestamp
+        if value is None:
+            raise HistoryError("分页消息缺少一致的排序信息，无法完整读取区间。")
+        return value
+
+    if order(start) > order(end):
+        raise HistoryError("起点晚于终点，请重新标记范围。")
+    if order(start) == order(end):
+        raise HistoryError(
+            "起止消息排序值相同且无法区分先后，请选择发送时间不同的边界消息。"
+        )
     messages = {end.id: end}
     cursor = end
     for _ in range(26):
@@ -105,21 +134,33 @@ async def read_range(
             )
         parsed = sorted(
             (_message(row, channel) for row in page),
-            key=lambda row: row.sequence,
+            key=order,
             reverse=True,
         )
         for row in parsed:
-            if start.sequence <= row.sequence <= end.sequence:
+            if (
+                not use_sequence
+                and order(row) == order(start)
+                and row.id != start.id
+            ):
+                raise HistoryError(
+                    "起点附近多条消息时间相同且缺少序号，请重新选择时间不同的起点。"
+                )
+            if order(start) <= order(row) <= order(end):
                 messages[row.id] = row
         if len(messages) > limit:
             raise HistoryError(f"区间超过 {limit} 条消息，请缩小范围。")
         if start.id in messages:
-            return sorted(messages.values(), key=lambda row: row.sequence)
+            return sorted(messages.values(), key=order)
         oldest = parsed[-1]
-        if (
-            oldest.sequence <= start.sequence
-            or oldest.sequence >= cursor.sequence
-        ):
+        if order(oldest) <= order(start) or order(oldest) >= order(cursor):
             raise HistoryError("分页未能到达起点，请重新选择较小的范围。")
+        if (
+            not use_sequence
+            and sum(order(row) == order(oldest) for row in parsed) > 1
+        ):
+            raise HistoryError(
+                "分页边界多条消息时间相同且缺少序号，请缩小总结范围。"
+            )
         cursor = oldest
     raise HistoryError("消息区间过大，请缩小范围。")

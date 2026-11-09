@@ -157,6 +157,62 @@ class SummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["a"], [message.id for message in records])
         self.api._http.request.assert_not_awaited()
 
+    async def test_missing_sequence_uses_timezone_aware_timestamp(self) -> None:
+        def timed(identifier: str, second: int) -> dict[str, object]:
+            data = row(identifier, second)
+            data.pop("seq_in_channel")
+            data["timestamp"] = f"2026-11-09T12:00:{second:02d}+08:00"
+            return data
+
+        self.api.get_message.side_effect = lambda channel, identifier: timed(
+            identifier, {"a": 1, "z": 4}[identifier]
+        )
+        self.api._http.request.side_effect = [
+            [timed("d", 3), timed("b", 2)],
+            [timed("a", 1)],
+        ]
+        await self.select()
+        result = await self.service.summarize(self.key)
+        self.assertIn("4条可见消息", result)
+        self.generate.assert_awaited_once()
+
+    async def test_ambiguous_timestamp_endpoints_do_not_call_model(
+        self,
+    ) -> None:
+        def timed(channel: str, identifier: str) -> dict[str, object]:
+            data = row(identifier, 1)
+            data.pop("seq_in_channel")
+            data["timestamp"] = "2026-11-09T12:00:00Z"
+            return data
+
+        self.api.get_message.side_effect = timed
+        await self.select()
+        with self.assertRaises(channel_history.HistoryError):
+            await self.service.summarize(self.key)
+        self.generate.assert_not_called()
+
+    async def test_ambiguous_page_timestamp_does_not_skip_messages(
+        self,
+    ) -> None:
+        def timed(identifier: str, second: int) -> dict[str, object]:
+            data = row(identifier, second)
+            data.pop("seq_in_channel")
+            data["timestamp"] = f"2026-11-09T12:00:{second:02d}Z"
+            return data
+
+        self.api.get_message.side_effect = lambda channel, identifier: timed(
+            identifier, {"a": 1, "z": 4}[identifier]
+        )
+        self.api._http.request.return_value = [timed("b", 2), timed("d", 2)]
+        with self.assertRaises(channel_history.HistoryError):
+            await channel_history.read_range(self.api, "c", "a", "z")
+
+    def test_missing_all_order_fields_is_rejected(self) -> None:
+        data = row("a", 1)
+        data.pop("seq_in_channel")
+        with self.assertRaises(channel_history.HistoryError):
+            channel_history._message(data, "c")
+
     async def test_real_three_command_dispatch_and_no_command_body_storage(
         self,
     ) -> None:

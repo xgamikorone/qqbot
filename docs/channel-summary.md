@@ -13,7 +13,9 @@ AI 聊天的子频道能使用。使用已有模型环境变量，单独创建�
 
 `botpy_ext/channel_history.py` 补充 Python SDK 未封装的
 `GET /channels/{channel_id}/messages?before=...&limit=20`，从终点向前分页，
-按接口返回的 `seq_in_channel` 排序，不推断消息 ID。官方 Go SDK 的
+优先按接口返回的 `seq_in_channel` 排序，缺失时使用带时区的 `timestamp`，
+不推断消息 ID。缺少序号且起止时间相同、起点同时间存在其他消息或翻页边界
+时间无法区分时拒绝生成，避免跳过消息。官方 Go SDK 的
 [消息列表实现](https://github.com/tencent-connect/botgo/blob/master/openapi/v1/message.go)
 和[消息结构](https://github.com/tencent-connect/botgo/blob/master/dto/message.go)
 作为接口依据。实际机器人是否有历史读取权限仍须单独联调确认。
