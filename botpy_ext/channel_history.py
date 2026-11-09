@@ -3,9 +3,39 @@
 import dataclasses
 import datetime
 import json
+import logging
 
 from botpy import api as botpy_api
 from botpy import http as botpy_http
+from messaging import message_id
+
+_LOG = logging.getLogger(__name__)
+
+
+def _same_id(reference: str, returned: str, channel: str) -> bool:
+    """Accepts encoding variants only when all decoded fields agree.
+
+    The experimental codec never grants access or supplies a new ID. QQ's
+    response must still belong to the requested channel. Timestamp differences
+    remain mismatches until the actual wire behavior can be established.
+    """
+    if reference == returned:
+        return True
+    try:
+        first = message_id.decode_message_id(reference)
+        second = message_id.decode_message_id(returned)
+    except ValueError:
+        _LOG.warning("查询消息ID不一致: codec_supported=False")
+        return False
+    _LOG.info(
+        "查询消息ID表示差异: guild_equal=%s channel_equal=%s "
+        "sequence_equal=%s timestamp_equal=%s",
+        first.guild_id == second.guild_id,
+        first.channel_id == second.channel_id,
+        first.sequence == second.sequence,
+        first.timestamp == second.timestamp,
+    )
+    return first == second and str(first.channel_id) == channel
 
 
 class HistoryError(ValueError):
@@ -86,7 +116,13 @@ async def get_message(
     """Validates an endpoint using QQ's single-message interface."""
     result = await api.get_message(channel, identifier)
     parsed = _message(result, channel)
-    if parsed.id != identifier:
+    if not _same_id(identifier, parsed.id, channel):
+        _LOG.warning(
+            "频道消息ID校验失败: requested_id=%r returned_id=%r channel_id=%r",
+            identifier[:256],
+            parsed.id[:256],
+            channel[:128],
+        )
         raise HistoryError("接口返回的消息与引用不一致。")
     return parsed
 
@@ -101,7 +137,7 @@ async def read_range(
     """Walks backwards to the exact start; never summarizes a partial range."""
     start = await get_message(api, channel, start_id)
     end = await get_message(api, channel, end_id)
-    if start_id == end_id:
+    if start.id == end.id:
         return [start]
     use_sequence = start.sequence is not None and end.sequence is not None
 

@@ -66,7 +66,8 @@ class SummaryService:
     async def mark(self, key: Key, identifier: str, *, start: bool) -> None:
         """Checks a reference before retaining it within the requesting scope."""
         self.check(key)
-        await channel_history.get_message(self.api, key[1], identifier)
+        resolved = await channel_history.get_message(self.api, key[1], identifier)
+        identifier = resolved.id
         selected = self.selections.get(key)
         if selected is None or selected.expires <= time.monotonic():
             selected = Selection(time.monotonic() + 1800)

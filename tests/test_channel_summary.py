@@ -13,6 +13,7 @@ from botpy_ext import channel_history
 from chat import config
 from chat import model_client
 from chat import summary
+from messaging import message_id
 
 
 def row(
@@ -152,6 +153,19 @@ class SummaryTests(unittest.IsolatedAsyncioTestCase):
             await self.service.summarize(self.key)
         self.generate.assert_awaited_once()
 
+    async def test_id_mismatch_logs_ids_without_body(self) -> None:
+        self.api.get_message.side_effect = None
+        data = row("returned-id", 4)
+        data["content"] = "private conversation text"
+        self.api.get_message.return_value = data
+        with self.assertLogs(channel_history._LOG, level="WARNING") as logs:
+            with self.assertRaises(channel_history.HistoryError):
+                await channel_history.get_message(self.api, "c", "requested-id")
+        output = "\n".join(logs.output)
+        self.assertIn("requested_id='requested-id'", output)
+        self.assertIn("returned_id='returned-id'", output)
+        self.assertNotIn("private conversation text", output)
+
     async def test_same_message_range(self) -> None:
         records = await channel_history.read_range(self.api, "c", "a", "a")
         self.assertEqual(["a"], [message.id for message in records])
@@ -212,6 +226,32 @@ class SummaryTests(unittest.IsolatedAsyncioTestCase):
         data.pop("seq_in_channel")
         with self.assertRaises(channel_history.HistoryError):
             channel_history._message(data, "c")
+
+    async def test_id_hex_case_variant_returns_original_server_id(self) -> None:
+        original = message_id.encode_message_id(99, 42, 8, 101)
+        self.api.get_message.side_effect = None
+        self.api.get_message.return_value = row(original.upper(), 8, "42")
+        result = await channel_history.get_message(self.api, "42", original)
+        self.assertEqual(original.upper(), result.id)
+
+    def test_id_different_time_or_sequence_is_not_silently_equated(
+        self,
+    ) -> None:
+        original = message_id.encode_message_id(99, 42, 8, 101)
+        self.assertFalse(
+            channel_history._same_id(
+                original, message_id.encode_message_id(99, 42, 8, 102), "42"
+            )
+        )
+        self.assertFalse(
+            channel_history._same_id(
+                original, message_id.encode_message_id(99, 42, 9, 101), "42"
+            )
+        )
+        self.assertFalse(
+            channel_history._same_id(original, original.upper(), "43")
+        )
+        self.assertFalse(channel_history._same_id("unknown", "different", "42"))
 
     async def test_real_three_command_dispatch_and_no_command_body_storage(
         self,
