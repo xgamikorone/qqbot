@@ -226,11 +226,12 @@ class SceneCommandTests(unittest.IsolatedAsyncioTestCase):
         content = self.api.post_group_message.await_args.kwargs["content"]
         self.assertIn("答案之书", content)
         self.assertIn("当前时间", content)
-        self.assertNotIn("/聊天", content)
+        self.assertIn("/聊天", content)
         await self.manager.execute_user(self.user_message("/帮助"))
         content = self.api.post_c2c_message.await_args.kwargs["content"]
         self.assertIn("答案之书", content)
         self.assertNotIn("当前时间", content)
+        self.assertNotIn("/聊天", content)
 
     async def test_empty_unknown_and_invalid_chain(self) -> None:
         for content in ("", "/不存在", "/time &&"):

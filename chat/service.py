@@ -28,8 +28,18 @@ class ChatService:
         user_id: str,
         text: str,
         send_reply: Callable[[str], Awaitable[object]],
+        *,
+        extra_system: str = "",
     ) -> str:
-        """Runs one admitted turn under the appropriate total deadline."""
+        """Runs one admitted turn under the appropriate total deadline.
+
+        Args:
+            key: Opaque conversation scope; also the per-session lock.
+            user_id: Quota identity, already prefixed by scene when needed.
+            text: User input, bounded by ``max_input_chars``.
+            send_reply: Scene-specific transport returning the QQ response.
+            extra_system: Optional scene note appended to the system prompt.
+        """
         if self.closed or len(self.tasks) >= self.config.max_pending_requests:
             raise ChatError("聊天请求繁忙，请稍后再试。")
         if key in self.tasks:
@@ -38,7 +48,8 @@ class ChatService:
             raise ChatError(f"请输入 1–{self.config.max_input_chars} 字符的聊天内容。")
         version = self.repository.version(key)
         task = asyncio.create_task(
-            self._run(key, user_id, text, version, send_reply))
+            self._run(key, user_id, text, version, send_reply, extra_system)
+        )
         self.tasks[key] = task
         try:
             timeout = (self.config.web_timeout_seconds
@@ -60,14 +71,19 @@ class ChatService:
         text: str,
         version: int,
         send_reply: Callable[[str], Awaitable[object]],
+        extra_system: str = "",
     ) -> str:
         async with self.slots:
             if not self.repository.reserve(user_id,
                                            self.config.daily_requests_per_user):
                 raise ChatError("今天的聊天请求额度已用完。")
             pairs = self.repository.history(key, self.config.retention_days)
-            budget = self.config.max_context_chars - len(
-                self.config.prompt) - len(text)
+            system_prompt = self.config.prompt
+            if extra_system:
+                system_prompt = f"{system_prompt}\n\n{extra_system}"
+            budget = (
+                self.config.max_context_chars - len(system_prompt) - len(text)
+            )
             history: list[dict[str, str]] = []
             for question, answer in reversed(pairs):
                 if len(question) + len(answer) > budget:
@@ -80,13 +96,13 @@ class ChatService:
                     "role": "assistant",
                     "content": answer
                 }]
-            result = await self.model.generate([{
-                "role": "system",
-                "content": self.config.prompt
-            }, *history, {
-                "role": "user",
-                "content": text
-            }])
+            result = await self.model.generate(
+                [
+                    {"role": "system", "content": system_prompt},
+                    *history,
+                    {"role": "user", "content": text},
+                ]
+            )
             if self.repository.version(key) != version:
                 raise ChatError("会话已重置，旧回答已丢弃。")
             attempt = None

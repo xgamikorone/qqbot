@@ -30,6 +30,13 @@ def session_key(guild: object, channel: object, user: object) -> str:
         [str(guild), str(channel), str(user)], separators=(",", ":"))
 
 
+def group_session_key(group_openid: object, member_openid: object) -> str:
+    """Builds a group/member scope that cannot collide with channel keys."""
+    return json.dumps(
+        ["group", str(group_openid), str(member_openid)], separators=(",", ":")
+    )
+
+
 class ChatRepository:
     """Keeps normal context separate from short-lived sending diagnostics."""
 

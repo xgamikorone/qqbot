@@ -1,14 +1,19 @@
 import dataclasses
 import pathlib
+import re
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+# Group openids are opaque platform identifiers, not numeric channel IDs.
+_GROUP_OPENID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 @dataclasses.dataclass(frozen=True)
 class ChatConfig:
     enabled: bool = False
     allowed_channel_ids: tuple[str, ...] = ()
+    allowed_group_ids: tuple[str, ...] = ()
     max_input_chars: int = 2000
     max_context_chars: int = 8000
     max_output_tokens: int = 800
@@ -43,12 +48,21 @@ def load_config(path: str | pathlib.Path | None = None) -> ChatConfig:
     ):
         raise ValueError("Channel IDs must be quoted numeric strings")
     data["allowed_channel_ids"] = tuple(channels)
+    groups = data.get("allowed_group_ids", [])
+    if not isinstance(groups, list) or any(
+        not isinstance(x, str) or not _GROUP_OPENID.fullmatch(x) for x in groups
+    ):
+        raise ValueError("Group IDs must be nonempty openid strings")
+    if len(set(groups)) != len(groups):
+        raise ValueError("Group IDs must be distinct")
+    data["allowed_group_ids"] = tuple(groups)
     for key, value in data.items():
         if key not in {
             "enabled",
             "web_enabled",
             "summary_construct_ids",
             "allowed_channel_ids",
+            "allowed_group_ids",
         } and (type(value) is not int or value <= 0):
             raise ValueError("Chat limits must be positive integers")
     config = ChatConfig(**data,

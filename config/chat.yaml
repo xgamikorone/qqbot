@@ -1,5 +1,7 @@
 enabled: false
 allowed_channel_ids: []
+# Group openids are opaque strings; add one per group after checking the event.
+allowed_group_ids: []
 max_input_chars: 2000
 max_context_chars: 8000
 max_output_tokens: 800
