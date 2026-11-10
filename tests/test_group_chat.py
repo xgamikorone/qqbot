@@ -15,6 +15,7 @@ from botpy.types import gateway
 from chat.config import ChatConfig, load_config
 from chat.model_client import GenerationResult
 from chat.service import ChatService
+from commands import chat as chat_commands
 from commands.chat import ChatCommand
 from database.repositories.chat_repository import (
     ChatRepository,
@@ -156,6 +157,73 @@ class GroupChatCommandTests(unittest.IsolatedAsyncioTestCase):
                 0
             ],
         )
+
+    async def test_unconfirmed_chunk_stops_remaining_answer_and_history(
+        self,
+    ) -> None:
+        self.model.generate.return_value = GenerationResult("x" * 3500, "fake")
+        key = group_session_key("G1", "M1")
+        for failed_index in (0, 1):
+            for response in (None, {}, {"code": 304023}, {"code": 304024}):
+                with self.subTest(index=failed_index, response=response):
+                    self.api.post_group_message.reset_mock()
+                    self.api.post_group_message.side_effect = [
+                        {"id": "sent"}
+                    ] * failed_index + [response, {"id": "error-notice"}]
+                    await self.run_group()
+                    answer_calls = [
+                        call
+                        for call in self.api.post_group_message.await_args_list
+                        if call.kwargs["content"].startswith("x")
+                    ]
+                    self.assertEqual(failed_index + 1, len(answer_calls))
+                    self.assertEqual([], self.repo.history(key, 7))
+                    expected = (
+                        "pending"
+                        if response and response.get("code")
+                        else "unknown"
+                    )
+                    self.assertEqual(
+                        expected, self.repo.list_deliveries()[0]["status"]
+                    )
+
+    async def test_group_prompt_overflow_does_not_use_model_or_quota(
+        self,
+    ) -> None:
+        self.service.config = replace(
+            self.config, max_context_chars=len(self.config.prompt) + 2000
+        )
+        self.assertFalse(await self.run_group(args=["x" * 2000]))
+        self.model.generate.assert_not_awaited()
+        self.assertEqual(
+            0,
+            self.conn.execute("SELECT COUNT(*) FROM chat_requests").fetchone()[
+                0
+            ],
+        )
+        self.assertEqual({}, self.service.tasks)
+        self.assertIn(
+            "上下文长度",
+            self.api.post_group_message.await_args.kwargs["content"],
+        )
+
+    async def test_exact_group_budget_discards_history_but_keeps_input(
+        self,
+    ) -> None:
+        await self.run_group()
+        self.model.generate.reset_mock()
+        text = "刚好容纳的输入"
+        cap = len(
+            self.config.prompt + "\n\n" + chat_commands.GROUP_PROMPT_SUFFIX
+        ) + len(text)
+        self.service.config = replace(self.config, max_context_chars=cap)
+        self.assertTrue(await self.run_group(args=[text]))
+        messages = self.model.generate.await_args.args[0]
+        self.assertEqual(
+            ["system", "user"], [item["role"] for item in messages]
+        )
+        self.assertEqual(text, messages[-1]["content"])
+        self.assertEqual(cap, sum(len(item["content"]) for item in messages))
 
     async def test_audit_response_is_not_used_as_context(self) -> None:
         self.api.post_group_message.return_value = {"code": 304023}

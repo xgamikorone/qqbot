@@ -46,9 +46,16 @@ class ChatService:
             raise ChatError("你的上一条聊天正在处理，可使用 /聊天 /stop 取消。")
         if not text.strip() or len(text) > self.config.max_input_chars:
             raise ChatError(f"请输入 1–{self.config.max_input_chars} 字符的聊天内容。")
+        system_prompt = self.config.prompt
+        if extra_system:
+            system_prompt = f"{system_prompt}\n\n{extra_system}"
+        if len(system_prompt) + len(text) > self.config.max_context_chars:
+            raise ChatError(
+                "提示词和输入超出聊天上下文长度，请缩短输入或调整配置。"
+            )
         version = self.repository.version(key)
         task = asyncio.create_task(
-            self._run(key, user_id, text, version, send_reply, extra_system)
+            self._run(key, user_id, text, version, send_reply, system_prompt)
         )
         self.tasks[key] = task
         try:
@@ -71,16 +78,13 @@ class ChatService:
         text: str,
         version: int,
         send_reply: Callable[[str], Awaitable[object]],
-        extra_system: str = "",
+        system_prompt: str,
     ) -> str:
         async with self.slots:
             if not self.repository.reserve(user_id,
                                            self.config.daily_requests_per_user):
                 raise ChatError("今天的聊天请求额度已用完。")
             pairs = self.repository.history(key, self.config.retention_days)
-            system_prompt = self.config.prompt
-            if extra_system:
-                system_prompt = f"{system_prompt}\n\n{extra_system}"
             budget = (
                 self.config.max_context_chars - len(system_prompt) - len(text)
             )

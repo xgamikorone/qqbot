@@ -107,6 +107,10 @@ class ChatCommand(base.Command):
                     msg_id=message.id,
                     msg_seq=command_replies.next_sequence(message),
                 )
+                # Stop at the first unconfirmed chunk. The service classifies
+                # this response and must never save a partially sent answer.
+                if not isinstance(result, dict) or not result.get("id"):
+                    return result
             return result
 
         async def reply(content: str) -> None:
