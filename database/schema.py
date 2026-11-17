@@ -94,6 +94,10 @@ AND (e.channel_id = '' OR s.channel_id = e.channel_id);
 PRAGMA journal_mode = WAL;
 PRAGMA busy_timeout = 30000;
 CREATE TABLE IF NOT EXISTS chat_sessions (session_key TEXT PRIMARY KEY, version INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS chat_personas (
+    session_key TEXT PRIMARY KEY NOT NULL,
+    preference TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS chat_turns (
     id INTEGER PRIMARY KEY, session_key TEXT NOT NULL, question TEXT NOT NULL,
     answer TEXT NOT NULL, model TEXT NOT NULL, input_tokens INTEGER NOT NULL,

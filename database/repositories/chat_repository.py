@@ -65,6 +65,33 @@ class ChatRepository:
             self.conn.execute("DELETE FROM chat_deliveries WHERE session_key=?",
                               (key,))
 
+    def persona(self, key: str) -> str:
+        """Returns the preference for one session, or an empty string."""
+        row = self.conn.execute(
+            "SELECT preference FROM chat_personas WHERE session_key=?", (key,)
+        ).fetchone()
+        return str(row[0]) if row else ""
+
+    def set_persona(self, key: str, preference: str) -> None:
+        """Updates the preference and invalidates outstanding turns atomically."""
+        with self.conn:
+            if preference:
+                self.conn.execute(
+                    "INSERT INTO chat_personas(session_key, preference) "
+                    "VALUES (?, ?) ON CONFLICT(session_key) DO UPDATE "
+                    "SET preference=excluded.preference",
+                    (key, preference),
+                )
+            else:
+                self.conn.execute(
+                    "DELETE FROM chat_personas WHERE session_key=?", (key,)
+                )
+            self.conn.execute(
+                "INSERT INTO chat_sessions(session_key, version) VALUES (?, 1) "
+                "ON CONFLICT(session_key) DO UPDATE SET version=version+1",
+                (key,),
+            )
+
     def history(self, key: str, days: int) -> list[tuple[str, str]]:
         """Returns only confirmed sent turns for model context."""
         with self.conn:

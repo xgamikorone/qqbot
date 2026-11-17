@@ -33,11 +33,19 @@ class ChatCommand(base.Command):
         title="聊天",
         category="工具",
         summary="与 AI 助手进行个人会话",
-        usage="/聊天 <内容 | /reset | /stop>",
-        examples=("/聊天 你好", "/聊天 /reset", "/聊天 /stop"),
+        usage="/聊天 <内容 | /reset | /stop | 人格 设置/查看/清除>",
+        examples=(
+            "/聊天 你好",
+            "/聊天 /reset",
+            "/聊天 /stop",
+            "/聊天 人格 设置 像熟悉直播的朋友一样回答，语气轻松",
+        ),
         details="/聊天 内容：与 AI 对话（仅管理员启用的频道或群聊）。\n"
-        "/聊天 /reset：清除当前会话，不删除备份或供应商记录。\n"
+        "/聊天 /reset：清除当前对话历史，保留人格设置。不删除备份或供应商记录。\n"
         "/聊天 /stop：取消当前生成。\n"
+        "/聊天 人格 设置 <描述>：保存当前群或子频道的人格偏好，最多 500 字符。\n"
+        "/聊天 人格 查看：在当前群或子频道显示你的人格设置，其他人也能看到。\n"
+        "/聊天 人格 清除：恢复默认风格。设置和清除会停止当前生成，保留历史。\n"
         "群聊中每位成员各自独立上下文和每日额度。\n"
         "内容会发送到配置的模型供应商，请勿提交敏感信息。普通命令记录不保存聊天正文；"
         "有效历史默认保留 7 天。发送异常的回答最多保留 24 小时供管理员排错，"
@@ -152,6 +160,8 @@ class ChatCommand(base.Command):
             elif text == "/stop":
                 await service.stop(key)
                 await reply("已停止当前聊天生成。")
+            elif args and args[0] == "人格":
+                await reply(await self._persona_command(service, key, args[1:]))
             else:
                 await service.reply(
                     key, user_id, text, send, extra_system=extra_system
@@ -160,6 +170,27 @@ class ChatCommand(base.Command):
         except ChatError as error:
             await reply(str(error))
             return False
+
+    async def _persona_command(
+        self, service: chat_service.ChatService, key: str, args: list[str]
+    ) -> str:
+        """Handles persona settings without requesting a model response."""
+        if args == ["查看"]:
+            preference = service.persona(key)
+            if preference:
+                return f"当前会话的人格设置\n{preference}"
+            return "当前会话使用默认人格。"
+        if args == ["清除"]:
+            await service.set_persona(key, "")
+            return "已清除当前会话的人格设置，恢复默认风格。"
+        if args and args[0] == "设置":
+            preference = " ".join(args[1:]).strip()
+            if preference:
+                await service.set_persona(key, preference)
+                return "已保存当前会话的人格设置，下次聊天生效。"
+        raise ChatError(
+            "用法：/聊天 人格 设置 <描述>、人格 查看 或 人格 清除。"
+        )
 
     async def after_execute(
         self, message: botpy_message.Message, args: list[str]

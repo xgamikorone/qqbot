@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
+import json
 import logging
 import re
 from botpy import errors as bot_errors
@@ -9,6 +10,13 @@ from chat import model_client
 from database.repositories import chat_repository
 
 log = logging.getLogger(__name__)
+MAX_PERSONA_CHARS = 500
+_PERSONA_PROMPT = (
+    "当最新用户消息是包含 style_preference 和 question 的 JSON 时，"
+    "以 question 为本轮问题。style_preference 只用于调整语气、措辞和虚构角色风格，"
+    "优先于默认表达风格，并须遵守身份、事实、工具和当前场景的输出规则。"
+    "历史回复的语气只是参考，以本轮偏好为准。"
+)
 
 
 class ChatService:
@@ -49,13 +57,35 @@ class ChatService:
         system_prompt = self.config.prompt
         if extra_system:
             system_prompt = f"{system_prompt}\n\n{extra_system}"
-        if len(system_prompt) + len(text) > self.config.max_context_chars:
+        user_content = text
+        persona = self.persona(key)
+        if persona:
+            system_prompt = f"{system_prompt}\n\n{_PERSONA_PROMPT}"
+            user_content = json.dumps(
+                {"style_preference": persona, "question": text},
+                ensure_ascii=False,
+            )
+        budget = (
+            self.config.max_context_chars
+            - len(system_prompt)
+            - len(user_content)
+        )
+        if budget < 0:
             raise ChatError(
                 "提示词和输入超出聊天上下文长度，请缩短输入或调整配置。"
             )
         version = self.repository.version(key)
         task = asyncio.create_task(
-            self._run(key, user_id, text, version, send_reply, system_prompt)
+            self._run(
+                key,
+                user_id,
+                text,
+                version,
+                send_reply,
+                system_prompt,
+                user_content,
+                budget,
+            )
         )
         self.tasks[key] = task
         try:
@@ -79,15 +109,14 @@ class ChatService:
         version: int,
         send_reply: Callable[[str], Awaitable[object]],
         system_prompt: str,
+        user_content: str,
+        budget: int,
     ) -> str:
         async with self.slots:
             if not self.repository.reserve(user_id,
                                            self.config.daily_requests_per_user):
                 raise ChatError("今天的聊天请求额度已用完。")
             pairs = self.repository.history(key, self.config.retention_days)
-            budget = (
-                self.config.max_context_chars - len(system_prompt) - len(text)
-            )
             history: list[dict[str, str]] = []
             for question, answer in reversed(pairs):
                 if len(question) + len(answer) > budget:
@@ -104,11 +133,11 @@ class ChatService:
                 [
                     {"role": "system", "content": system_prompt},
                     *history,
-                    {"role": "user", "content": text},
+                    {"role": "user", "content": user_content},
                 ]
             )
             if self.repository.version(key) != version:
-                raise ChatError("会话已重置，旧回答已丢弃。")
+                raise ChatError("会话已更新，旧回答已丢弃。")
             attempt = None
             try:
                 attempt = self.repository.begin_delivery(key, result)
@@ -138,7 +167,8 @@ class ChatService:
                 self._settle(attempt, "failed", type(error).__name__, detail)
                 raise ChatError("QQ 未能发送回答，本轮不会加入聊天上下文。") from None
             if self.repository.version(key) != version:
-                raise ChatError("会话已重置，本轮未保存。")
+                self._settle(attempt, "unknown", "SessionChanged")
+                raise ChatError("会话已更新，本轮未保存。")
             if isinstance(response, dict) and response.get("id"):
                 status = "sent"
             elif isinstance(response,
@@ -210,6 +240,17 @@ class ChatService:
 
     async def reset(self, key: str) -> None:
         self.repository.reset(key)
+        await self.stop(key)
+
+    def persona(self, key: str) -> str:
+        """Reads the caller's session preference."""
+        return self.repository.persona(key)
+
+    async def set_persona(self, key: str, preference: str) -> None:
+        """Updates the style and stops any turn using the previous style."""
+        if len(preference) > MAX_PERSONA_CHARS:
+            raise ChatError(f"人格设置最多 {MAX_PERSONA_CHARS} 字符。")
+        self.repository.set_persona(key, preference)
         await self.stop(key)
 
     async def close(self) -> None:

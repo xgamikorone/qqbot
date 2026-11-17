@@ -1,6 +1,7 @@
 """Group chat entry, scoping, quota and transport behaviour."""
 
 import asyncio
+import json
 import sqlite3
 import tempfile
 import typing
@@ -273,6 +274,99 @@ class GroupChatCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(self.config.prompt, system)
         self.assertIn("QQ 群聊", system)
         self.assertIn("500 字以内", system)
+
+    async def test_persona_is_scoped_and_survives_conversation_reset(
+        self,
+    ) -> None:
+        preference = "语气冷静，少用表情"
+        self.assertTrue(await self.run_group(["人格", "设置", preference]))
+        self.assertTrue(await self.run_group(["人格", "查看"]))
+        self.assertIn(
+            preference, self.api.post_group_message.await_args.kwargs["content"]
+        )
+        self.assertTrue(await self.run_group(["人格", "查看"], member="M2"))
+        self.assertIn(
+            "默认人格", self.api.post_group_message.await_args.kwargs["content"]
+        )
+        self.assertTrue(await self.run_group(["人格", "查看"], group="G2"))
+        self.assertIn(
+            "默认人格", self.api.post_group_message.await_args.kwargs["content"]
+        )
+        self.assertTrue(await self.run_group(["/reset"]))
+        self.model.generate.assert_not_awaited()
+        self.assertEqual(
+            0,
+            self.conn.execute("SELECT COUNT(*) FROM chat_requests").fetchone()[
+                0
+            ],
+        )
+
+        self.assertTrue(await self.run_group(["问题"]))
+        messages = self.model.generate.await_args.args[0]
+        self.assertNotIn(preference, messages[0]["content"])
+        self.assertIn("QQ 群聊", messages[0]["content"])
+        self.assertEqual(
+            {"style_preference": preference, "question": "问题"},
+            json.loads(messages[-1]["content"]),
+        )
+        self.assertTrue(await self.run_group(["人格", "清除"]))
+        self.assertEqual(
+            [("问题", "回答")],
+            self.repo.history(group_session_key("G1", "M1"), 7),
+        )
+        self.assertTrue(await self.run_group(["继续"]))
+        self.assertEqual(
+            "继续", self.model.generate.await_args.args[0][-1]["content"]
+        )
+
+    async def test_persona_counts_against_input_budget_before_quota(
+        self,
+    ) -> None:
+        self.assertFalse(await self.run_group(["人格", "设置", "嗨" * 501]))
+        self.assertTrue(await self.run_group(["人格", "设置", "嗨" * 500]))
+        plain_chars = len(
+            self.config.prompt + "\n\n" + chat_commands.GROUP_PROMPT_SUFFIX
+        )
+        self.service.config = replace(
+            self.config, max_context_chars=plain_chars + 10
+        )
+        self.assertFalse(await self.run_group(["问题"]))
+        self.model.generate.assert_not_awaited()
+        self.assertEqual(
+            0,
+            self.conn.execute("SELECT COUNT(*) FROM chat_requests").fetchone()[
+                0
+            ],
+        )
+
+    async def test_persona_change_discards_old_answer_if_model_ignores_cancel(
+        self,
+    ) -> None:
+        started = asyncio.Event()
+
+        async def generate(messages: list[dict[str, str]]) -> GenerationResult:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                return GenerationResult("过时回答", "fake")
+            return GenerationResult("过时回答", "fake")
+
+        self.model.generate.side_effect = generate
+        running = asyncio.create_task(self.run_group(["问题"]))
+        await started.wait()
+        self.assertTrue(await self.run_group(["人格", "设置", "严肃"]))
+        self.assertFalse(await running)
+        self.assertEqual(
+            [], self.repo.history(group_session_key("G1", "M1"), 7)
+        )
+        self.assertNotIn(
+            "过时回答",
+            [
+                call.kwargs["content"]
+                for call in self.api.post_group_message.await_args_list
+            ],
+        )
 
     async def test_guild_path_keeps_plain_prompt(self) -> None:
         message = botpy_message.Message(
