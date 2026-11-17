@@ -1,7 +1,6 @@
 """Group chat entry, scoping, quota and transport behaviour."""
 
 import asyncio
-import json
 import sqlite3
 import tempfile
 import typing
@@ -306,8 +305,11 @@ class GroupChatCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(preference, messages[0]["content"])
         self.assertIn("QQ 群聊", messages[0]["content"])
         self.assertEqual(
-            {"style_preference": preference, "question": "问题"},
-            json.loads(messages[-1]["content"]),
+            [
+                {"role": "user", "content": preference},
+                {"role": "user", "content": "问题"},
+            ],
+            messages[1:],
         )
         self.assertTrue(await self.run_group(["人格", "清除"]))
         self.assertEqual(
@@ -317,6 +319,42 @@ class GroupChatCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.run_group(["继续"]))
         self.assertEqual(
             "继续", self.model.generate.await_args.args[0][-1]["content"]
+        )
+
+    async def test_saved_persona_card_is_sent_as_plain_text_lines(self) -> None:
+        self.assertTrue(await self.run_group(["之前的问题"]))
+        self.repo.set_persona(
+            group_session_key("G1", "M1"),
+            "【PERSONA_LOAD】\\ LANG_ZH_CN_ONLY\\PERSONALITY_TSUNDERE",
+        )
+        self.assertTrue(await self.run_group(["介绍一下你的角色"]))
+        messages = self.model.generate.await_args.args[0]
+        self.assertIn("切换到该描述的虚构角色", messages[0]["content"])
+        card = "【PERSONA_LOAD】\nLANG_ZH_CN_ONLY\nPERSONALITY_TSUNDERE"
+        self.assertEqual(
+            [
+                {"role": "user", "content": card},
+                {"role": "user", "content": "之前的问题"},
+                {"role": "assistant", "content": "回答"},
+                {"role": "user", "content": "介绍一下你的角色"},
+            ],
+            messages[1:],
+        )
+        question = "继续"
+        self.service.config = replace(
+            self.config,
+            max_context_chars=len(messages[0]["content"])
+            + len(card)
+            + len(question),
+        )
+        self.assertTrue(await self.run_group([question]))
+        self.assertEqual(
+            [
+                messages[0],
+                {"role": "user", "content": card},
+                {"role": "user", "content": question},
+            ],
+            self.model.generate.await_args.args[0],
         )
 
     async def test_persona_counts_against_input_budget_before_quota(

@@ -1,6 +1,5 @@
 import asyncio
 from collections.abc import Awaitable, Callable
-import json
 import logging
 import re
 from botpy import errors as bot_errors
@@ -12,11 +11,19 @@ from database.repositories import chat_repository
 log = logging.getLogger(__name__)
 MAX_PERSONA_CHARS = 500
 _PERSONA_PROMPT = (
-    "当最新用户消息是包含 style_preference 和 question 的 JSON 时，"
-    "以 question 为本轮问题。style_preference 只用于调整语气、措辞和虚构角色风格，"
-    "优先于默认表达风格，并须遵守身份、事实、工具和当前场景的输出规则。"
-    "历史回复的语气只是参考，以本轮偏好为准。"
+    "本轮启用自定义人格。第一条用户消息是开场人格卡，可包含自然语言或标签列表。"
+    "中间的消息是历史对话，最后一条用户消息是当前要回答的问题。"
+    "切换到该描述的虚构角色，可采用角色的称呼、语气和兴趣，"
+    "以本轮人格为准，不沿用历史回复的默认风格。"
+    "不得声称自己是现实人物本人。事实、工具规则和场景输出要求始终适用。"
 )
+
+
+def _persona_text(persona: str) -> str:
+    """Restores the tag layout when a persona card uses backslash separators."""
+    if persona.startswith(("【PERSONA_LOAD】", "〖PERSONA_LOAD〗")):
+        return re.sub(r"\s*\\\s*", "\n", persona)
+    return persona
 
 
 class ChatService:
@@ -57,18 +64,16 @@ class ChatService:
         system_prompt = self.config.prompt
         if extra_system:
             system_prompt = f"{system_prompt}\n\n{extra_system}"
-        user_content = text
-        persona = self.persona(key)
+        persona = _persona_text(self.persona(key))
         if persona:
             system_prompt = f"{system_prompt}\n\n{_PERSONA_PROMPT}"
-            user_content = json.dumps(
-                {"style_preference": persona, "question": text},
-                ensure_ascii=False,
-            )
+        opening = [{"role": "system", "content": system_prompt}]
+        if persona:
+            opening.append({"role": "user", "content": persona})
         budget = (
             self.config.max_context_chars
-            - len(system_prompt)
-            - len(user_content)
+            - sum(len(message["content"]) for message in opening)
+            - len(text)
         )
         if budget < 0:
             raise ChatError(
@@ -82,8 +87,7 @@ class ChatService:
                 text,
                 version,
                 send_reply,
-                system_prompt,
-                user_content,
+                opening,
                 budget,
             )
         )
@@ -108,8 +112,7 @@ class ChatService:
         text: str,
         version: int,
         send_reply: Callable[[str], Awaitable[object]],
-        system_prompt: str,
-        user_content: str,
+        opening: list[dict[str, str]],
         budget: int,
     ) -> str:
         async with self.slots:
@@ -131,9 +134,9 @@ class ChatService:
                 }]
             result = await self.model.generate(
                 [
-                    {"role": "system", "content": system_prompt},
+                    *opening,
                     *history,
-                    {"role": "user", "content": user_content},
+                    {"role": "user", "content": text},
                 ]
             )
             if self.repository.version(key) != version:
